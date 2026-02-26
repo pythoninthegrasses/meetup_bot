@@ -27,6 +27,7 @@ tasks:
     cmds:
       - task --list
 
+  # TODO: update this
   install:
     desc: "Install project dependencies"
     cmds:
@@ -76,3 +77,27 @@ tasks:
     desc: "Check bash scripts"
     cmds:
       - checkbashism -x {{.ROOT_DIR}}/app/*.sh
+
+  repomix:
+    desc: "Create llm snapshot of repo"
+    preconditions:
+      - sh: command -v repomix 2>/dev/null
+        msg: "repomix is not installed. Install with: npm install -g repomix"
+    cmds:
+      - |
+        repomix \
+          --style markdown \
+          --compress \
+          --remove-comments \
+          --remove-empty-lines \
+          --truncate-base64
+    sources:
+      - "**/*.py"
+      - "**/*.toml"
+      - "**/*.yml"
+      - "**/*.yaml"
+      - "**/*.md"
+      - "**/*.json"
+      - ".repomix*"
+    generates:
+      - repomix-output.md
