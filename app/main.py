@@ -375,18 +375,16 @@ def get_events(
 
     export_to_file(response, format, exclusions=exclusion_list)
 
-    # third-party query
+    # third-party query (batched)
+    responses = send_batched_group_request(access_token, url_vars)
     output = []
-    for url in url_vars:
-        response = send_request(access_token, url_query, f'{{"urlname": "{url}"}}')
-        # append to output dict if the response is not empty
+    for i, response in enumerate(responses):
         if len(format_response(response, exclusions=exclusion_list)) > 0:
             output.append(response)
         else:
-            print(f"{Fore.GREEN}{info:<10}{Fore.RESET}No upcoming events for {url} found")
-    # loop through output and append to file
-    for i in range(len(output)):
-        export_to_file(output[i], format)
+            print(f"{Fore.GREEN}{info:<10}{Fore.RESET}No upcoming events for {url_vars[i]} found")
+    for resp in output:
+        export_to_file(resp, format)
 
     # cleanup output file
     sort_json(json_fn)

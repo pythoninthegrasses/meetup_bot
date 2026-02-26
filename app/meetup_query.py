@@ -139,6 +139,83 @@ query($urlname: String!) {
 """
 
 
+group_fields = """\
+        id
+        description
+        name
+        urlname
+        city
+        link
+        events(first: 10) {
+            totalCount
+            pageInfo {
+                endCursor
+            }
+            edges {
+                node {
+                    id
+                    title
+                    description
+                    dateTime
+                    eventUrl
+                    group {
+                        id
+                        name
+                        urlname
+                        link
+                        city
+                    }
+                }
+            }
+        }"""
+
+
+def build_batched_group_query(urlnames: list[str]) -> str:
+    """Build a single GraphQL query with aliases for multiple groups."""
+    if not urlnames:
+        return ""
+    aliases = []
+    for i, urlname in enumerate(urlnames):
+        aliases.append(f'    group_{i}: groupByUrlname(urlname: "{urlname}") {{\n{group_fields}\n    }}')
+    return "query {\n" + "\n".join(aliases) + "\n}"
+
+
+def send_batched_group_request(token: str, urlnames: list[str]) -> list[str]:
+    """Send a batched GraphQL query and return individual response strings.
+
+    Each returned string is a JSON object matching the format expected by
+    format_response: {"data": {"groupByUrlname": ...}}
+    """
+    if not urlnames:
+        return []
+
+    batched_query = build_batched_group_query(urlnames)
+    endpoint = 'https://api.meetup.com/gql-ext'
+    headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json; charset=utf-8'}
+
+    try:
+        r = requests.post(endpoint, json={'query': batched_query}, headers=headers)
+        print(f"{Fore.GREEN}{info:<10}{Fore.RESET}Batched response HTTP: {r.status_code} ({len(urlnames)} groups)")
+        response_data = r.json()
+    except requests.exceptions.RequestException as e:
+        print(f'HTTP Request failed:\n{e}')
+        sys.exit(1)
+
+    if 'errors' in response_data:
+        for err in response_data['errors']:
+            print(f"{Fore.YELLOW}{warning:<10}{Fore.RESET}GraphQL error: {err.get('message', err)}")
+
+    data = response_data.get('data', {})
+    results = []
+    for i in range(len(urlnames)):
+        alias = f'group_{i}'
+        group_data = data.get(alias)
+        individual = json.dumps({"data": {"groupByUrlname": group_data}}, indent=2, sort_keys=False)
+        results.append(individual)
+
+    return results
+
+
 def send_request(token, query, vars) -> str:
     """
     Request
@@ -412,18 +489,16 @@ def main():
     # format_response(response, exclusions=exclusions)                      # don't need if exporting to file
     export_to_file(response, format, exclusions=exclusions)  # csv/json
 
-    # third-party query
+    # third-party query (batched)
+    responses = send_batched_group_request(access_token, url_vars)
     output = []
-    for url in url_vars:
-        response = send_request(access_token, url_query, f'{{"urlname": "{url}"}}')
-        # append to output dict if the response is not empty
+    for i, response in enumerate(responses):
         if len(format_response(response, exclusions=exclusions)) > 0:
             output.append(response)
         else:
-            print(f'{Fore.GREEN}{info:<10}{Fore.RESET}No upcoming events for {url} found')
-    # loop through output and append to file
-    for i in range(len(output)):
-        export_to_file(output[i], format)
+            print(f'{Fore.GREEN}{info:<10}{Fore.RESET}No upcoming events for {url_vars[i]} found')
+    for resp in output:
+        export_to_file(resp, format)
 
     # cleanup output file
     if format == 'csv':
