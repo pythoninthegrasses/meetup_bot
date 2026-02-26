@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
 version: "3.0"
 
 set: ['e', 'u', 'pipefail']
@@ -6,50 +8,20 @@ shopt: ['globstar']
 dotenv: ['./app/.env']
 
 env:
-  TLD: "{{.ROOT_DIR}}"
-  APP:
-    sh: echo "${APP_NAME:-meetup_bot}"
-  POETRY:
-    sh: "echo ${POETRY:-1.8.3}"
-  PY_VER:
-    sh: "echo ${PY_VER:-3.11.9}"
-  SCRIPT:
-    sh: "echo ${SCRIPT:-scheduler.sh}"
-  UNAME:
-    sh: "uname -s"
+  VENV_DIR: "{{.ROOT_DIR}}/.venv"
+  PATH: "{{.VENV_DIR}}/bin:{{.PATH}}"
 
 vars:
 
 includes:
   docker:
     taskfile: ./taskfiles/docker.yml
-    aliases: ["docker"]
   heroku:
     taskfile: ./taskfiles/heroku.yml
-    aliases: ["heroku"]
-  poetry:
-    taskfile: ./taskfiles/poetry.yml
-    aliases: ["poetry"]
+  uv:
+    taskfile: ./taskfiles/uv.yml
 
 tasks:
-  print:
-    - |
-      echo -e "TLD:\t\t$TLD"
-      echo -e "APP:\t\t{{.APP}}"
-      echo -e "BUILD:\t\t{{.BUILD}}"
-      echo -e "COMPOSE_FILE:\t{{.COMPOSE_FILE}}"
-      echo -e "DOCKERFILE:\t{{.DOCKERFILE}}"
-      echo -e "HEROKU_APP:\t{{.HEROKU_APP}}"
-      echo -e "PLATFORM:\t{{.PLATFORM}}"
-      echo -e "POETRY:\t\t{{.POETRY}}"
-      echo -e "PY_VER:\t\t{{.PY_VER}}"
-      echo -e "SCRIPT:\t\t{{.SCRIPT}}"
-      echo -e "REGISTRY:\t$REGISTRY"
-      echo -e "SERVICE:\t{{.SERVICE}}"
-      echo -e "TAG:\t\t${TAG}"
-      echo -e "USER_NAME:\t$USER_NAME"
-      echo -e "UNAME:\t\t$UNAME"
-
   default:
     desc: "Default task"
     cmds:
@@ -64,22 +36,22 @@ tasks:
   pre-commit:
     desc: "Run pre-commit hooks"
     cmds:
-      - pre-commit run --all-files
+      - prek run
 
   lint:
     desc: "Run linters"
     cmds:
-      - poetry run ruff check --fix --respect-gitignore
+      - ruff check --fix --respect-gitignore
 
   format:
     desc: "Run formatters"
     cmds:
-      - poetry run ruff format --respect-gitignore
+      - ruff format --respect-gitignore
 
   test:
     desc: "Run tests"
     cmds:
-      - poetry run pytest
+      - pytest
 
   pyclean:
     desc: "Remove .pyc and __pycache__"
@@ -93,33 +65,14 @@ tasks:
         )
         case "{{.CLI_ARGS}}" in
           dry-run)
-            poetry run pyclean "${args[@]}" --dry-run
+            pyclean "${args[@]}" --dry-run
             ;;
           *)
-            poetry run pyclean "${args[@]}"
+            pyclean "${args[@]}"
             ;;
         esac
 
   checkbash:
     desc: "Check bash scripts"
     cmds:
-      - checkbashism -x {{.TLD}}/app/*.sh
-
-  update-deps:
-    desc: "Update dependencies"
-    cmds:
-      - |
-        poetry cache clear --all pypi --no-ansi
-        poetry update --lock --no-ansi
-
-  export-reqs:
-    desc: "Export requirements.txt"
-    summary: |
-      Export the project dependencies to a requirements.txt file.
-    cmds:
-      - |
-        poetry export -f requirements.txt \
-          --output {{.TLD}}/requirements.txt \
-          --without-hashes \
-          --no-ansi
-    ignore_error: true
+      - checkbashism -x {{.ROOT_DIR}}/app/*.sh
