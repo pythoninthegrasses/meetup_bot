@@ -156,7 +156,7 @@ def send_request(token, query, vars) -> str:
             variables = json.loads(vars)
         else:
             variables = vars
-        
+
         r = requests.post(endpoint, json={'query': query, 'variables': variables}, headers=headers)
         print(f"{Fore.GREEN}{info:<10}{Fore.RESET}Response HTTP Response Body: {r.status_code}")
 
@@ -297,21 +297,27 @@ def sort_json(filename) -> None:
     # else:
     #     year = str(arrow.now(TZ).shift(days=7).year)
 
-    # convert date column from 'ddd M/D h:mm a' (e.g., Tue 7/19 5:00 pm) to iso8601
-    try:
-        # extract dates from date column into a dictionary
-        # * Timestamp('2023-02-28 16:30:00-0600', tz='pytz.FixedOffset(-360)')
-        dates = df['date'].to_dict()
-
-        # convert dates to iso8601
-        for key, value in dates.items():
-            dates[key] = arrow.get(value, 'ddd M/D h:mm a').format('YYYY-MM-DDTHH:mm:ss')
-
-        # replace dates in dictionary with iso8601
-        df['date'] = df['date'].replace(dates)
-    except ParserError:
-        print(f"{Fore.RED}{error:<10}{Fore.RESET}ParserError: date column is already in correct format")
-        pass
+    # convert date column to iso8601, handling both raw strings and pre-parsed Timestamps
+    dates = df['date'].to_dict()
+    for key, value in dates.items():
+        if isinstance(value, pd.Timestamp):
+            dates[key] = value.strftime('%Y-%m-%dT%H:%M:%S')
+        elif isinstance(value, str):
+            try:
+                parsed = arrow.get(value, 'ddd M/D h:mm a')
+                if parsed.year == 1:
+                    parsed = parsed.replace(year=arrow.now(tz).year)
+                dates[key] = parsed.format('YYYY-MM-DDTHH:mm:ss')
+            except ParserError:
+                try:
+                    dates[key] = arrow.get(value).format('YYYY-MM-DDTHH:mm:ss')
+                except ParserError:
+                    print(f"{Fore.RED}{error:<10}{Fore.RESET}Unparseable date: {value!r}")
+                    dates[key] = None
+        else:
+            print(f"{Fore.YELLOW}{warning:<10}{Fore.RESET}Unexpected date type {type(value).__name__}: {value!r}")
+            dates[key] = None
+    df['date'] = pd.Series(dates)
 
     # control for timestamp edge case `1-07-21 18:00:00` || `1-01-25 10:00:00` raising OutOfBoundsError
     df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%dT%H:%M:%S', errors='coerce')

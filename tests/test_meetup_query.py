@@ -98,6 +98,90 @@ def test_sort_json(tmp_path):
 
 
 @pytest.mark.unit
+def test_sort_json_with_string_dates(tmp_path):
+    """sort_json converts human-readable string dates to ISO 8601 and sorts them."""
+    test_json = tmp_path / "test.json"
+    data = [
+        {"date": "Sat 9/21 10:00 am", "eventUrl": "url1"},
+        {"date": "Fri 9/20 6:00 pm", "eventUrl": "url2"},
+    ]
+    with open(test_json, "w") as f:
+        json.dump(data, f)
+
+    with (
+        patch("meetup_query.json_fn", str(test_json)),
+        patch("arrow.now", return_value=arrow.get("2024-09-18")),
+    ):
+        sort_json(test_json)
+
+    with open(test_json) as f:
+        sorted_data = json.load(f)
+
+    assert len(sorted_data) == 2
+    assert sorted_data[0]["eventUrl"] == "url2"
+    assert sorted_data[1]["eventUrl"] == "url1"
+
+
+@pytest.mark.unit
+def test_sort_json_with_timestamp_dates(tmp_path):
+    """sort_json handles dates already parsed as Timestamps by pandas."""
+    test_json = tmp_path / "test.json"
+    # pandas infers ISO 8601 strings as Timestamps when reading JSON
+    data = [
+        {"date": "2024-09-21T10:00:00", "eventUrl": "url1"},
+        {"date": "2024-09-20T18:00:00", "eventUrl": "url2"},
+    ]
+    with open(test_json, "w") as f:
+        json.dump(data, f)
+
+    with (
+        patch("meetup_query.json_fn", str(test_json)),
+        patch("arrow.now", return_value=arrow.get("2024-09-18")),
+    ):
+        sort_json(test_json)
+
+    with open(test_json) as f:
+        sorted_data = json.load(f)
+
+    assert len(sorted_data) == 2
+    assert sorted_data[0]["eventUrl"] == "url2"
+    assert sorted_data[1]["eventUrl"] == "url1"
+    # Dates should be in human-readable format
+    assert sorted_data[0]["date"] == "Fri 9/20 6:00 pm"
+    assert sorted_data[1]["date"] == "Sat 9/21 10:00 am"
+
+
+@pytest.mark.unit
+def test_sort_json_consistent_output_both_formats(tmp_path):
+    """Both string and Timestamp inputs produce identical output format."""
+    string_json = tmp_path / "string.json"
+    timestamp_json = tmp_path / "timestamp.json"
+
+    string_data = [{"date": "Fri 9/20 6:00 pm", "eventUrl": "url1"}]
+    timestamp_data = [{"date": "2024-09-20T18:00:00", "eventUrl": "url1"}]
+
+    with open(string_json, "w") as f:
+        json.dump(string_data, f)
+    with open(timestamp_json, "w") as f:
+        json.dump(timestamp_data, f)
+
+    with (
+        patch("arrow.now", return_value=arrow.get("2024-09-18")),
+    ):
+        with patch("meetup_query.json_fn", str(string_json)):
+            sort_json(string_json)
+        with patch("meetup_query.json_fn", str(timestamp_json)):
+            sort_json(timestamp_json)
+
+    with open(string_json) as f:
+        string_result = json.load(f)
+    with open(timestamp_json) as f:
+        timestamp_result = json.load(f)
+
+    assert string_result[0]["date"] == timestamp_result[0]["date"]
+
+
+@pytest.mark.unit
 def test_export_to_file(mock_response, tmp_path):
     test_json = tmp_path / "output.json"
 
