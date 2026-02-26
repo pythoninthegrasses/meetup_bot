@@ -1,5 +1,6 @@
 # TODO
 
+* Refactor app modules to use absolute paths derived from `__file__` instead of relative paths (channels.csv, resources/templates, groups.csv, etc.) so tests can run from any cwd without `os.chdir`
 * Move exclusions to either
   * GraphQL
   * Filter by url (e.g., `https://www.meetup.com/project3810/events/308160679/`)

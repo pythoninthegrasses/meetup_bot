@@ -13,7 +13,7 @@ def mock_response():
         {
             "data": {
                 "self": {
-                    "upcomingEvents": {
+                    "memberEvents": {
                         "edges": [
                             {
                                 "node": {
@@ -46,23 +46,26 @@ def mock_df():
     )
 
 
+@pytest.mark.unit
 def test_send_request(mock_response):
     with patch("requests.post") as mock_post:
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = json.loads(mock_response)
 
-        response = send_request("fake_token", "fake_query", "fake_vars")
+        response = send_request("fake_token", "fake_query", '{"id": "1"}')
 
         assert json.loads(response) == json.loads(mock_response)
         mock_post.assert_called_once()
 
 
+@pytest.mark.unit
 def test_format_response(mock_response, mock_df):
-    with patch("arrow.now", return_value=arrow.get("2024-09-18")):
+    with patch("arrow.now", return_value=arrow.get("2024-09-18").to("America/Chicago")):
         df = format_response(mock_response)
         pd.testing.assert_frame_equal(df, mock_df)
 
 
+@pytest.mark.unit
 def test_sort_csv(tmp_path):
     test_csv = tmp_path / "test.csv"
     df = pd.DataFrame({"date": ["2024-09-21T10:00:00", "2024-09-20T18:00:00"], "eventUrl": ["url1", "url2"]})
@@ -74,6 +77,7 @@ def test_sort_csv(tmp_path):
     assert sorted_df["date"].tolist() == ["Fri 9/20 6:00 pm", "Sat 9/21 10:00 am"]
 
 
+@pytest.mark.unit
 def test_sort_json(tmp_path):
     test_json = tmp_path / "test.json"
     data = [{"date": "2024-09-21T10:00:00", "eventUrl": "url1"}, {"date": "2024-09-20T18:00:00", "eventUrl": "url2"}]
@@ -93,10 +97,14 @@ def test_sort_json(tmp_path):
     print("Sorted data:", json.dumps(sorted_data, indent=2))
 
 
+@pytest.mark.unit
 def test_export_to_file(mock_response, tmp_path):
     test_json = tmp_path / "output.json"
 
-    with patch("meetup_query.json_fn", test_json), patch("arrow.now", return_value=arrow.get("2024-09-18")):
+    with (
+        patch("meetup_query.json_fn", str(test_json)),
+        patch("arrow.now", return_value=arrow.get("2024-09-18").to("America/Chicago")),
+    ):
         export_to_file(mock_response, type="json")
 
     with open(test_json) as f:
@@ -106,6 +114,7 @@ def test_export_to_file(mock_response, tmp_path):
     assert exported_data[0]["title"] == "Test Event"
 
 
+@pytest.mark.unit
 @patch("meetup_query.gen_token")
 @patch("meetup_query.send_request")
 @patch("meetup_query.export_to_file")
@@ -114,7 +123,8 @@ def test_main(mock_sort_json, mock_export, mock_send, mock_gen_token, mock_respo
     mock_gen_token.return_value = {"access_token": "fake_token"}
     mock_send.return_value = mock_response
 
-    with patch("meetup_query.url_vars", ["test-group"]):
+    with patch("meetup_query.url_vars", ["test-group"]), patch("meetup_query.format_response") as mock_format:
+        mock_format.return_value = pd.DataFrame({"name": ["Test"]})
         main()
 
     assert mock_send.call_count == 2
