@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 
 import arrow
+import httpx
 import json
 import os
 import pandas as pd
-import requests
-import requests_cache
 import sys
 from arrow import ParserError
 from colorama import Fore
 from decouple import config
+from hishel import CacheOptions, SpecificationPolicy, SyncSqliteStorage
+from hishel.httpx import SyncCacheClient
 from icecream import ic
 from pathlib import Path
 from sign_jwt import main as gen_token
@@ -48,8 +49,23 @@ if not groups_csv.exists():
 sec = 60  # n seconds
 ttl = int(sec * 30)  # n minutes -> hours
 
-# cache the requests as script basename, expire after n time
-requests_cache.install_cache(Path(cache_fn), expire_after=ttl)
+# hishel cache client with SQLite storage (absolute path, no monkey-patching)
+cache_db_path = script_dir / cache_fn
+cache_db_path.parent.mkdir(parents=True, exist_ok=True)
+_storage = SyncSqliteStorage(
+    database_path=str(cache_db_path),
+    default_ttl=float(ttl),
+)
+http_client = SyncCacheClient(
+    storage=_storage,
+    policy=SpecificationPolicy(
+        cache_options=CacheOptions(
+            shared=False,
+            supported_methods=["GET", "HEAD", "POST"],
+            allow_stale=False,
+        )
+    ),
+)
 
 # read groups from file via pandas
 csv = pd.read_csv(groups_csv, header=0)
@@ -194,10 +210,10 @@ def send_batched_group_request(token: str, urlnames: list[str]) -> list[str]:
     headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json; charset=utf-8'}
 
     try:
-        r = requests.post(endpoint, json={'query': batched_query}, headers=headers)
+        r = http_client.post(endpoint, json={'query': batched_query}, headers=headers)
         print(f"{Fore.GREEN}{info:<10}{Fore.RESET}Batched response HTTP: {r.status_code} ({len(urlnames)} groups)")
         response_data = r.json()
-    except requests.exceptions.RequestException as e:
+    except httpx.HTTPError as e:
         print(f'HTTP Request failed:\n{e}')
         sys.exit(1)
 
@@ -234,15 +250,12 @@ def send_request(token, query, vars) -> str:
         else:
             variables = vars
 
-        r = requests.post(endpoint, json={'query': query, 'variables': variables}, headers=headers)
+        r = http_client.post(endpoint, json={'query': query, 'variables': variables}, headers=headers)
         print(f"{Fore.GREEN}{info:<10}{Fore.RESET}Response HTTP Response Body: {r.status_code}")
 
         # pretty prints json response content but skips sorting keys as it rearranges graphql response
         pretty_response = json.dumps(r.json(), indent=2, sort_keys=False)
-
-        # formatted response
-        # print('Response HTTP Response Body:\n{content}'.format(content=pretty_response))
-    except requests.exceptions.RequestException as e:
+    except httpx.HTTPError as e:
         print(f'HTTP Request failed:\n{e}')
         sys.exit(1)
 

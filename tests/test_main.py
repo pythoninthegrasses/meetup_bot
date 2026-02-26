@@ -2,7 +2,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from jose import jwt
-from main import User, UserInDB, app, get_current_user
+from main import UserInDB, app, get_current_user
 from unittest.mock import MagicMock, patch
 
 
@@ -105,6 +105,7 @@ def test_get_events(test_client, auth_headers):
     with (
         patch('main.generate_token', return_value=("fake_access", "fake_refresh")),
         patch('main.send_request'),
+        patch('main.send_batched_group_request', return_value=[]),
         patch('main.export_to_file'),
         patch('main.format_response', return_value=MagicMock(__len__=lambda s: 0)),
         patch('main.sort_json'),

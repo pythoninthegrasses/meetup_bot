@@ -26,7 +26,6 @@ class TestPasswordHashing:
 
     def test_no_passlib_import(self):
         """passlib should not be imported by main.py."""
-        import importlib
         import sys
 
         # Remove cached main module to re-import fresh

@@ -38,11 +38,11 @@ def mock_slack_client():
 
 @pytest.fixture
 def mock_meetup_api():
-    """Patch requests.post for Meetup GraphQL calls."""
-    with patch("requests.post") as mock_post:
-        mock_post.return_value.status_code = 200
-        mock_post.return_value.json.return_value = {}
-        yield mock_post
+    """Patch the hishel/httpx cache client for Meetup GraphQL calls."""
+    with patch("meetup_query.http_client") as mock_client:
+        mock_client.post.return_value.status_code = 200
+        mock_client.post.return_value.json.return_value = {}
+        yield mock_client
 
 
 @pytest.fixture

@@ -6,14 +6,14 @@ from meetup_query import (
     build_batched_group_query,
     export_to_file,
     format_response,
+    http_client,
     main,
     send_batched_group_request,
     send_request,
     sort_csv,
     sort_json,
 )
-from pathlib import Path
-from unittest.mock import mock_open, patch
+from unittest.mock import patch
 
 
 @pytest.fixture
@@ -56,15 +56,25 @@ def mock_df():
 
 
 @pytest.mark.unit
+def test_http_client_exists():
+    """http_client is an httpx-compatible cache client (hishel SyncCacheClient)."""
+
+    assert http_client is not None
+    assert hasattr(http_client, "post")
+    assert hasattr(http_client, "get")
+
+
+@pytest.mark.unit
 def test_send_request(mock_response):
-    with patch("requests.post") as mock_post:
-        mock_post.return_value.status_code = 200
-        mock_post.return_value.json.return_value = json.loads(mock_response)
+    with patch("meetup_query.http_client") as mock_client:
+        mock_resp = mock_client.post.return_value
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = json.loads(mock_response)
 
         response = send_request("fake_token", "fake_query", '{"id": "1"}')
 
         assert json.loads(response) == json.loads(mock_response)
-        mock_post.assert_called_once()
+        mock_client.post.assert_called_once()
 
 
 @pytest.mark.unit
@@ -290,9 +300,9 @@ class TestSendBatchedGroupRequest:
             }
         }
 
-        with patch("requests.post") as mock_post:
-            mock_post.return_value.status_code = 200
-            mock_post.return_value.json.return_value = batched_response
+        with patch("meetup_query.http_client") as mock_client:
+            mock_client.post.return_value.status_code = 200
+            mock_client.post.return_value.json.return_value = batched_response
 
             results = send_batched_group_request("fake_token", ["test-group"])
 
@@ -334,9 +344,9 @@ class TestSendBatchedGroupRequest:
             }
         }
 
-        with patch("requests.post") as mock_post:
-            mock_post.return_value.status_code = 200
-            mock_post.return_value.json.return_value = batched_response
+        with patch("meetup_query.http_client") as mock_client:
+            mock_client.post.return_value.status_code = 200
+            mock_client.post.return_value.json.return_value = batched_response
 
             results = send_batched_group_request("fake_token", ["group-a", "group-b"])
 
@@ -367,9 +377,9 @@ class TestSendBatchedGroupRequest:
             "errors": [{"message": "Group not found", "path": ["group_1"]}],
         }
 
-        with patch("requests.post") as mock_post:
-            mock_post.return_value.status_code = 200
-            mock_post.return_value.json.return_value = batched_response
+        with patch("meetup_query.http_client") as mock_client:
+            mock_client.post.return_value.status_code = 200
+            mock_client.post.return_value.json.return_value = batched_response
 
             results = send_batched_group_request("fake_token", ["group-a", "bad-group"])
 

@@ -1,10 +1,10 @@
 ---
 id: TASK-011
 title: Batch GraphQL queries for /api/events endpoint
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-02-26 21:43'
-updated_date: '2026-02-26 21:53'
+updated_date: '2026-02-26 21:55'
 labels:
   - refactor
   - performance
@@ -27,7 +27,7 @@ The /api/events endpoint currently makes one initial GraphQL request plus a sepa
 - [x] #2 The batched query uses GraphQL aliases or an equivalent mechanism to fetch data for all groups in url_vars in a single request
 - [x] #3 Response data is correctly mapped back to each group after batching
 - [x] #4 The /api/events endpoint returns the same data as before the optimization
-- [ ] #5 Endpoint response time is measurably improved (target: at least 50% reduction in wall-clock time for the GraphQL portion)
+- [x] #5 Endpoint response time is measurably improved (target: at least 50% reduction in wall-clock time for the GraphQL portion)
 - [x] #6 Error handling accounts for partial failures where some groups return errors while others succeed
 <!-- AC:END -->
 
