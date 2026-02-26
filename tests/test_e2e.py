@@ -1,6 +1,6 @@
+import httpx
 import os
 import pytest
-import requests
 import socket
 import subprocess
 import sys
@@ -54,6 +54,7 @@ def e2e_server():
             "ALGORITHM": "HS256",
             "TOKEN_EXPIRE": "30",
             "OVERRIDE": "true",
+            "DEV": "false",
         }
     )
 
@@ -79,10 +80,10 @@ def e2e_server():
     deadline = time.time() + 30
     while time.time() < deadline:
         try:
-            resp = requests.get(f"{BASE_URL}/healthz", timeout=1)
+            resp = httpx.get(f"{BASE_URL}/healthz", timeout=1)
             if resp.status_code == 200:
                 break
-        except requests.ConnectionError:
+        except httpx.ConnectError:
             pass
         time.sleep(0.5)
     else:
@@ -108,9 +109,9 @@ def e2e_server():
 
 @pytest.fixture
 def session(e2e_server):
-    """Requests session for e2e tests."""
-    with requests.Session() as s:
-        yield s
+    """httpx client for e2e tests."""
+    with httpx.Client() as c:
+        yield c
 
 
 @pytest.fixture
@@ -134,7 +135,7 @@ def auth_token(e2e_server, session, base_url):
 
 @pytest.fixture
 def auth_session(session, auth_token):
-    """Requests session with Authorization header set."""
+    """httpx client with Authorization header set."""
     session.headers.update({"Authorization": f"Bearer {auth_token}"})
     return session
 
@@ -187,7 +188,7 @@ class TestAuthLoginFlow:
                 "username": e2e_server["db_user"],
                 "password": e2e_server["db_pass"],
             },
-            allow_redirects=False,
+            follow_redirects=False,
         )
         assert resp.status_code == 303
         assert resp.headers["location"] == "/docs"
