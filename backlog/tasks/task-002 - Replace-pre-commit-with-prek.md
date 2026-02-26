@@ -1,10 +1,10 @@
 ---
 id: TASK-002
 title: Replace pre-commit with prek
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-02-26 16:56'
-updated_date: '2026-02-26 17:16'
+updated_date: '2026-02-26 17:55'
 labels:
   - tooling
   - dx
@@ -44,11 +44,29 @@ The project uses pre-commit with these hooks (`.pre-commit-config.yaml`):
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 prek is installed via mise and configured as the git hook runner
-- [ ] #2 All existing hooks (gitleaks, ruff, pre-commit-hooks) pass with prek
-- [ ] #3 pre-commit Python package is removed from dev dependencies
-- [ ] #4 Taskfile `pre-commit` task updated to use prek
-- [ ] #5 CLAUDE.md references updated from pre-commit to prek
-- [ ] #6 CI workflows updated if applicable
-- [ ] #7 `prek run --all-files` passes cleanly
+- [x] #1 prek is installed via mise and configured as the git hook runner
+- [x] #2 All existing hooks (gitleaks, ruff, pre-commit-hooks) pass with prek
+- [x] #3 pre-commit Python package is removed from dev dependencies
+- [x] #4 Taskfile `pre-commit` task updated to use prek
+- [x] #5 CLAUDE.md references updated from pre-commit to prek
+- [x] #6 CI workflows updated if applicable
+- [x] #7 `prek run --all-files` passes cleanly
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Replaced `pre-commit` with `prek` (j178/prek) across the project:
+
+- prek 0.3.2 installed via mise, git hooks already configured by prek
+- All hooks (gitleaks, ruff, pre-commit-hooks) pass with `prek run --all-files`
+- `pre-commit` Python package was not in dev dependencies (no removal needed)
+- Taskfile `pre-commit` task already used `prek run` (updated in prior session)
+- CLAUDE.md reference updated to `prek run --all-files` (prior session)
+- AGENTS.md reference updated to `prek run --all-files`
+- devbox.json package changed from `pre-commit` to `prek`
+- JSON formatting and trailing newline fixes applied by prek hooks
+- No CI workflow changes needed (no pre-commit references in workflows)
+
+Commit: cc2098e
+<!-- SECTION:FINAL_SUMMARY:END -->

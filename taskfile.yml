@@ -14,6 +14,8 @@ env:
 vars:
 
 includes:
+  deno:
+    taskfile: ./taskfiles/deno.yml
   docker:
     taskfile: ./taskfiles/docker.yml
   heroku:
@@ -82,7 +84,7 @@ tasks:
     desc: "Create llm snapshot of repo"
     preconditions:
       - sh: command -v repomix 2>/dev/null
-        msg: "repomix is not installed. Install with: npm install -g repomix"
+        msg: "repomix is not installed. Install with: deno install -g npm:repomix"
     cmds:
       - |
         repomix \

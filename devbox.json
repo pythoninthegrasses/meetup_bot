@@ -12,7 +12,7 @@
     },
     "gnumake": "latest",
     "go-task": "latest",
-    "nodejs": "latest",
+    "deno": "latest",
     "openssl": "latest",
     "prek": "latest",
     "ruff": "latest",
