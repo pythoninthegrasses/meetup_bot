@@ -23,6 +23,23 @@ pony.orm.Database.generate_mapping = lambda *a, **kw: None
 groups_csv_path = app_path / "groups.csv"
 
 
+def _load_env_file():
+    """Load app/.env if it exists and env vars aren't already set."""
+    env_file = root_path / "app" / ".env"
+    if not env_file.exists():
+        return False
+    for line in env_file.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+    return True
+
+
 @pytest.fixture
 def groups_csv_fixture():
     return str(groups_csv_path)
@@ -64,3 +81,21 @@ def mock_env():
     }
     with patch("decouple.config", side_effect=lambda key, **kwargs: defaults.get(key, kwargs.get("default", ""))):
         yield defaults
+
+
+@pytest.fixture
+def integration_client():
+    """TestClient for integration tests against the FastAPI app.
+
+    Requires app/.env or equivalent environment variables.
+    Skips if the app cannot be imported due to missing configuration.
+    """
+    _load_env_file()
+    try:
+        from app.main import app
+    except Exception as exc:
+        pytest.skip(f"Cannot import app (missing env vars or DB): {exc}")
+    from fastapi.testclient import TestClient
+
+    with TestClient(app) as client:
+        yield client

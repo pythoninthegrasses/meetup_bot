@@ -1,18 +1,12 @@
 import pytest
-import requests
-from decouple import config
-
-base_url = config('URL', default='http://localhost')
-if base_url == 'http://localhost':
-    port = config('PORT', default='3000')
-    url = f"{base_url}:{port}"
-else:
-    url = base_url
-
-response = requests.get(f"{url}/healthz")
 
 
 @pytest.mark.integration
-def test_healthz_endpoint():
-    assert response.status_code == 200, f"Expected status code 200, got {response.status_code}"
-    assert response.text == '{"status":"ok"}', f"Unexpected response content: {response.text}"
+class TestHealthz:
+    def test_status_code(self, integration_client):
+        response = integration_client.get("/healthz")
+        assert response.status_code == 200, f"Expected status code 200, got {response.status_code}"
+
+    def test_response_body(self, integration_client):
+        response = integration_client.get("/healthz")
+        assert response.json() == {"status": "ok"}, f"Unexpected response content: {response.text}"
