@@ -62,6 +62,8 @@ test = [
 ]
 
 [tool.pytest.ini_options]
+pythonpath = ["app"]
+asyncio_mode = "auto"
 markers = [
     "unit: unit tests (no external dependencies)",
     "integration: integration tests (component interactions, TestClient)",
@@ -87,12 +89,3 @@ DEP002 = [
     "uvicorn"
 ]
 
-[tool.pytest.ini_options]
-pythonpath = ["app"]
-markers = [
-    "unit: pure unit tests (no external deps)",
-    "integration: integration tests (require running server)",
-    "e2e: end-to-end tests (full stack)",
-    "property: property-based tests (Hypothesis)",
-]
-asyncio_mode = "auto"
