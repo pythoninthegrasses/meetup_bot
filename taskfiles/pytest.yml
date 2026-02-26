@@ -1,0 +1,99 @@
+version: "3.0"
+
+set: ['e', 'u', 'pipefail']
+shopt: ['globstar']
+
+vars:
+  APP_DIR: "{{.ROOT_DIR}}/app"
+  TEST_DIR: "{{.ROOT_DIR}}/tests"
+  PORT: '{{.PORT | default "3000"}}'
+  PIDFILE: "{{.ROOT_DIR}}/.uvicorn.pid"
+  HEALTH_URL: "http://localhost:{{.PORT}}/healthz"
+  HEALTH_TIMEOUT: 30
+  HEALTH_INTERVAL: 1
+
+tasks:
+  test:
+    desc: "Run all tests"
+    cmds:
+      - pytest {{.CLI_ARGS}}
+
+  test:unit:
+    desc: "Run unit tests"
+    cmds:
+      - pytest -m unit {{.CLI_ARGS}}
+
+  test:integration:
+    desc: "Run integration tests (manages server lifecycle)"
+    cmds:
+      - task: server:start
+      - defer: { task: server:stop }
+      - task: server:wait
+      - pytest -m integration {{.CLI_ARGS}}
+
+  test:e2e:
+    desc: "Run e2e tests (manages server lifecycle)"
+    cmds:
+      - task: server:start
+      - defer: { task: server:stop }
+      - task: server:wait
+      - pytest -m e2e {{.CLI_ARGS}}
+
+  test:property:
+    desc: "Run property-based tests (Hypothesis)"
+    cmds:
+      - pytest -m property {{.CLI_ARGS}}
+
+  test:cov:
+    desc: "Run tests with coverage report"
+    cmds:
+      - pytest --cov=app --cov-report=term-missing {{.CLI_ARGS}}
+
+  server:start:
+    desc: "Start uvicorn in background"
+    internal: true
+    dir: "{{.APP_DIR}}"
+    cmds:
+      - |
+        if [ -f "{{.PIDFILE}}" ] && kill -0 "$(cat "{{.PIDFILE}}")" 2>/dev/null; then
+          echo "Server already running (PID $(cat "{{.PIDFILE}}"))"
+          exit 0
+        fi
+        uvicorn main:app \
+          --host 0.0.0.0 \
+          --port {{.PORT}} \
+          --log-level warning &
+        echo $! > "{{.PIDFILE}}"
+        echo "Started uvicorn (PID $!)"
+
+  server:stop:
+    desc: "Stop background uvicorn"
+    internal: true
+    cmds:
+      - |
+        if [ ! -f "{{.PIDFILE}}" ]; then
+          exit 0
+        fi
+        pid=$(cat "{{.PIDFILE}}")
+        if kill -0 "$pid" 2>/dev/null; then
+          kill "$pid"
+          echo "Stopped uvicorn (PID $pid)"
+        fi
+        rm -f "{{.PIDFILE}}"
+
+  server:wait:
+    desc: "Wait for server health check"
+    internal: true
+    cmds:
+      - |
+        elapsed=0
+        while [ "$elapsed" -lt "{{.HEALTH_TIMEOUT}}" ]; do
+          if curl -sf "{{.HEALTH_URL}}" > /dev/null 2>&1; then
+            echo "Server healthy (${elapsed}s)"
+            exit 0
+          fi
+          sleep {{.HEALTH_INTERVAL}}
+          elapsed=$((elapsed + {{.HEALTH_INTERVAL}}))
+        done
+        echo "Server failed to start within {{.HEALTH_TIMEOUT}}s"
+        exit 1

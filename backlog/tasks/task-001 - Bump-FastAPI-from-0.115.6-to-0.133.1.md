@@ -4,9 +4,14 @@ title: Bump FastAPI from >=0.115.6 to >=0.133.1
 status: To Do
 assignee: []
 created_date: '2026-02-26 16:25'
+updated_date: '2026-02-26 18:06'
 labels:
   - dependencies
-dependencies: []
+dependencies:
+  - TASK-004
+  - TASK-005
+  - TASK-006
+  - TASK-007
 references:
   - 'https://github.com/fastapi/fastapi/pull/14964'
   - pyproject.toml

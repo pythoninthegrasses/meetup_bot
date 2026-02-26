@@ -20,6 +20,8 @@ includes:
     taskfile: ./taskfiles/docker.yml
   heroku:
     taskfile: ./taskfiles/heroku.yml
+  pytest:
+    taskfile: ./taskfiles/pytest.yml
   uv:
     taskfile: ./taskfiles/uv.yml
 
@@ -52,9 +54,34 @@ tasks:
       - ruff format --respect-gitignore
 
   test:
-    desc: "Run tests"
+    desc: "Run all tests"
     cmds:
-      - pytest
+      - task: pytest:test
+
+  test:unit:
+    desc: "Run unit tests"
+    cmds:
+      - task: pytest:test:unit
+
+  test:integration:
+    desc: "Run integration tests (starts/stops server)"
+    cmds:
+      - task: pytest:test:integration
+
+  test:e2e:
+    desc: "Run e2e tests (starts/stops server)"
+    cmds:
+      - task: pytest:test:e2e
+
+  test:property:
+    desc: "Run property-based tests (Hypothesis)"
+    cmds:
+      - task: pytest:test:property
+
+  test:cov:
+    desc: "Run tests with coverage"
+    cmds:
+      - task: pytest:test:cov
 
   pyclean:
     desc: "Remove .pyc and __pycache__"

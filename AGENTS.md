@@ -23,12 +23,32 @@ Always use Context7 MCP when I need library/API documentation, code generation, 
 
 ## Build, Lint, and Test Commands
 
-- Full test suite: `uv run pytest` or `task test`
+- Full test suite: `task test`
+- Unit tests: `task test:unit`
+- Integration tests: `task test:integration` (auto server start/stop)
+- E2E tests: `task test:e2e` (auto server start/stop)
+- Property-based tests: `task test:property`
+- Coverage: `task test:cov`
 - Single test: `uv run pytest tests/test_filename.py::test_function_name`
+- Pass extra args: `task test:unit -- -v -k test_health`
 - Linting: `uv run ruff check --fix --respect-gitignore` or `task lint`
 - Formatting: `uv run ruff format --respect-gitignore` or `task format`
 - Check dependencies: `uv run deptry .` or `task deptry`
 - Pre-commit hooks: `prek run --all-files` or `task pre-commit`
+
+### Test Markers
+
+Tests use pytest markers to categorize test types:
+
+- `@pytest.mark.unit` — isolated tests, no external deps
+- `@pytest.mark.integration` — component interactions, may need DB/server
+- `@pytest.mark.e2e` — full stack with real HTTP requests
+- `@pytest.mark.property` — Hypothesis property-based tests
+
+### Test Taskfile Structure
+
+Test tasks are defined in `taskfiles/pytest.yml` and delegated from the root `taskfile.yml`.
+Integration and e2e tasks manage server lifecycle automatically (start, health wait, test, stop via `defer`).
 
 ## Code Style Guidelines
 
