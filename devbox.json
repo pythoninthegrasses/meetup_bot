@@ -12,12 +12,10 @@
     },
     "gnumake": "latest",
     "go-task": "latest",
-    "kubectl": "latest",
     "nodejs": "latest",
     "openssl": "latest",
     "prek": "latest",
     "ruff": "latest",
-    "tilt": "latest",
     "uv": "latest"
   },
   "env": {
