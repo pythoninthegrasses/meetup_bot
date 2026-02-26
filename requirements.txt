@@ -13,9 +13,7 @@ attrs==24.3.0
     #   cattrs
     #   requests-cache
 bcrypt==4.0.1
-    # via
-    #   meetup-bot (pyproject.toml)
-    #   passlib
+    # via meetup-bot (pyproject.toml)
 cattrs==24.1.2
     # via requests-cache
 certifi==2024.12.14
@@ -65,8 +63,6 @@ numpy==2.2.1
 packaging==24.2
     # via gunicorn
 pandas==2.2.3
-    # via meetup-bot (pyproject.toml)
-passlib==1.7.4
     # via meetup-bot (pyproject.toml)
 platformdirs==4.3.6
     # via requests-cache

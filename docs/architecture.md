@@ -192,5 +192,5 @@ See `.env.example` for the full list. Key groups:
 | python-jose | HS256 JWT for application auth |
 | arrow | Timezone-aware date/time handling |
 | pandas | Data transformation and filtering |
-| passlib + bcrypt | Password hashing |
+| bcrypt | Password hashing |
 | Playwright | Browser-based group discovery |

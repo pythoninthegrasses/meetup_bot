@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 
 import arrow
+import bcrypt
 import os
 import pandas as pd
 import sys
 import time
+from collections.abc import AsyncIterator
 from colorama import Fore
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from decouple import config
 from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Request, status
@@ -17,7 +20,6 @@ from icecream import ic
 from jose import JWTError, jwt
 from math import ceil
 from meetup_query import *
-from passlib.context import CryptContext
 from pathlib import Path
 from pony.orm import Database, Optional, PrimaryKey, Required, Set, db_session
 from pydantic import BaseModel
@@ -91,8 +93,19 @@ def is_ip_allowed(request: Request):
 FastAPI app
 """
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Create default user on startup."""
+    with db_session:
+        if not UserInfo.exists(username=DB_USER):
+            hashed_password = get_password_hash(DB_PASS)
+            UserInfo(username=DB_USER, hashed_password=hashed_password)
+    yield
+
+
 # main web app
-app = FastAPI(title="meetup_bot API", openapi_url="/meetup_bot.json")
+app = FastAPI(title="meetup_bot API", openapi_url="/meetup_bot.json", lifespan=lifespan)
 
 # add `/api` route in front of all other endpoints
 api_router = APIRouter(prefix="/api")
@@ -172,19 +185,17 @@ class UserInDB(User):
     hashed_password: str
 
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 def verify_password(plain_password, hashed_password):
     """Validate plaintext password against hashed password"""
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 
 def get_password_hash(password):
     """Return hashed password"""
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def get_user(username: str):
@@ -300,20 +311,6 @@ def load_user(username: str):
 """
 Startup
 """
-
-
-# TODO: https://fastapi.tiangolo.com/advanced/events/
-@app.on_event("startup")
-def startup_event():
-    """
-    Run startup event
-    """
-
-    # create user
-    with db_session:
-        if not UserInfo.exists(username=DB_USER):
-            hashed_password = get_password_hash(DB_PASS)
-            UserInfo(username=DB_USER, hashed_password=hashed_password)
 
 
 @app.get("/healthz", status_code=200)
