@@ -200,15 +200,45 @@ def test_get_current_schedule(test_client, auth_headers):
 
 
 @pytest.mark.unit
+def test_dev_mode_bypasses_auth_for_local_requests(raw_test_client):
+    """When DEV=True, localhost requests should not require authentication."""
+    mock_schedule_obj = MagicMock(
+        day="Monday", schedule_time="10:00", enabled=True, snooze_until=None, original_schedule_time="10:00"
+    )
+
+    with (
+        patch('main.DEV', True),
+        patch('main.check_and_revert_snooze'),
+        patch('main.get_schedule', return_value=mock_schedule_obj),
+        patch('main.db_session') as mock_db_sess,
+    ):
+        mock_db_sess.return_value.__enter__ = MagicMock()
+        mock_db_sess.return_value.__exit__ = MagicMock(return_value=False)
+
+        response = raw_test_client.get("/api/schedule")
+        assert response.status_code == 200
+        data = response.json()
+        assert "schedules" in data
+
+
+@pytest.mark.unit
 def test_unauthorized_access(raw_test_client):
-    response = raw_test_client.get("/api/events")
-    assert response.status_code == 401
-    assert "detail" in response.json()
+    with (
+        patch('main.DEV', False),
+        patch('main.is_ip_allowed', return_value=False),
+    ):
+        response = raw_test_client.get("/api/events")
+        assert response.status_code == 401
+        assert "detail" in response.json()
 
 
 @pytest.mark.unit
 def test_invalid_token(raw_test_client):
-    headers = {"Authorization": "Bearer invalid_token"}
-    response = raw_test_client.get("/api/events", headers=headers)
-    assert response.status_code == 401
-    assert "detail" in response.json()
+    with (
+        patch('main.DEV', False),
+        patch('main.is_ip_allowed', return_value=False),
+    ):
+        headers = {"Authorization": "Bearer invalid_token"}
+        response = raw_test_client.get("/api/events", headers=headers)
+        assert response.status_code == 401
+        assert "detail" in response.json()

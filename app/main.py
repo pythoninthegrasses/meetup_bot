@@ -44,6 +44,7 @@ csv_fn = config("CSV_FN", default="raw/output.csv")
 json_fn = config("JSON_FN", default="raw/output.json")
 tz = config("TZ", default="America/Chicago")
 bypass_schedule = config("OVERRIDE", default=False, cast=bool)
+DEV = config("DEV", default=False, cast=bool)
 
 # time
 current_time_local = arrow.now(tz)
@@ -152,7 +153,7 @@ class UserInDB(User):
     hashed_password: str
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=not DEV)
 
 
 def verify_password(plain_password, hashed_password):
@@ -197,8 +198,10 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
 
 
 # TODO: store user session in cookie
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+async def get_current_user(token: str | None = Depends(oauth2_scheme)):
     """Get current user"""
+    if token is None:
+        return None
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -219,17 +222,26 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 
-async def get_current_active_user(current_user: User = Depends(get_current_user)):
+async def get_current_active_user(current_user: User | None = Depends(get_current_user)):
     """Get current active user"""
+    if current_user is None:
+        return None
     if current_user.disabled:
         raise HTTPException(status_code=400, detail="Inactive user")
 
     return current_user
 
 
-async def ip_whitelist_or_auth(request: Request, current_user: User = Depends(get_current_active_user)):
-    if is_ip_allowed(request):
+async def ip_whitelist_or_auth(request: Request, current_user: User | None = Depends(get_current_active_user)):
+    if DEV or is_ip_allowed(request):
         return {"bypass_auth": True}
+
+    if current_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     return current_user
 
@@ -330,10 +342,9 @@ def generate_token(current_user: User = Depends(get_current_active_user)):
 # TODO: decouple export from formatted response
 @api_router.get("/events")
 def get_events(
-    auth: dict = Depends(ip_whitelist_or_auth),
+    auth: dict | User = Depends(ip_whitelist_or_auth),
     location: str = "Oklahoma City",
     exclusions: str = "Tulsa",
-    current_user: User = Depends(get_current_active_user),
 ):
     """
     Query upcoming Meetup events
@@ -343,8 +354,7 @@ def get_events(
         exclusions (str): location to exclude from search
     """
 
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    check_auth(auth)
 
     access_token, refresh_token = generate_token()
 
@@ -433,11 +443,10 @@ def should_post_to_slack(auth: dict = Depends(ip_whitelist_or_auth), request: Re
 
 @api_router.post("/slack")
 def post_slack(
-    auth: dict = Depends(ip_whitelist_or_auth),
+    auth: dict | User = Depends(ip_whitelist_or_auth),
     location: str = "Oklahoma City",
     exclusions: str = "Tulsa",
     channel_name: str = None,
-    current_user: User = Depends(get_current_active_user),
     override: bool = bypass_schedule,
 ):
     """
@@ -446,8 +455,7 @@ def post_slack(
     Calls main function to post formatted message to predefined channel
     """
 
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    check_auth(auth)
 
     # TODO: debug
     # should_post_result = should_post_to_slack()
@@ -470,7 +478,7 @@ def post_slack(
     # else:
     #     return {"message": "Error checking schedule", "reason": "Unexpected return type from should_post_to_slack"}
 
-    get_events(location, exclusions=exclusions)
+    get_events(location=location, exclusions=exclusions)
 
     # open json file and convert to list of strings
     msg = fmt_json(json_fn)
