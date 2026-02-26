@@ -3,9 +3,9 @@
 import arrow
 import time
 from datetime import datetime, timedelta
-from db import db, init_db
+from db import Schedule, init_db
 from decouple import config
-from pony.orm import Optional, PrimaryKey, Required, db_session
+from pony.orm import db_session
 
 # env
 TZ = config("TZ", default="America/Chicago")  # Set this to local timezone
@@ -16,19 +16,6 @@ loc_time = arrow.now().to(TZ)
 time.tzset()
 days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 enabled_days = ["Monday", "Wednesday", "Friday"]
-
-
-# schedule model
-class Schedule(db.Entity):
-    _table_ = "schedule"
-    id = PrimaryKey(int, auto=True)
-    day = Required(str, unique=True)
-    schedule_time = Required(str)
-    timezone = Required(str)
-    enabled = Required(bool, default=True)
-    snooze_until = Optional(datetime)
-    original_schedule_time = Optional(str)
-    last_changed = Required(datetime, default=datetime.utcnow)
 
 
 def local_to_utc(local_time_str, timezone):

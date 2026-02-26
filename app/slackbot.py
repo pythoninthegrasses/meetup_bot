@@ -25,7 +25,8 @@ home = Path.home()
 cwd = Path.cwd()
 csv_fn = config('CSV_FN', default='raw/output.csv')
 json_fn = config('JSON_FN', default='raw/output.json')
-groups_csv = Path('groups.csv')
+_SLACKBOT_DIR = Path(__file__).resolve().parent
+groups_csv = _SLACKBOT_DIR / 'groups.csv'
 tz = config('TZ', default='America/Chicago')
 loc_time = arrow.now().to(tz)
 time.tzset()
@@ -42,7 +43,7 @@ HOST = config('HOST', default='localhost')
 CHANNEL = CHANNEL.strip('"')
 
 # read channel
-chan = pd.read_csv('channels.csv', header=0)
+chan = pd.read_csv(_SLACKBOT_DIR / 'channels.csv', header=0)
 
 # create dict of channels
 chan_dict = {}

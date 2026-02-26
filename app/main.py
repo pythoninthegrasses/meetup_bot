@@ -10,7 +10,7 @@ from collections.abc import AsyncIterator
 from colorama import Fore
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from db import db, init_db
+from db import APP_DIR, UserInfo, init_db
 from decouple import config
 from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,7 +22,7 @@ from jose import JWTError, jwt
 from math import ceil
 from meetup_query import *
 from pathlib import Path
-from pony.orm import Optional, PrimaryKey, Required, db_session
+from pony.orm import db_session
 from pydantic import BaseModel
 from schedule import check_and_revert_snooze, get_current_schedule_time, get_schedule, snooze_schedule
 from sign_jwt import main as gen_token
@@ -57,7 +57,7 @@ pd.set_option("display.max_columns", None)
 pd.set_option("display.max_colwidth", None)
 
 # index
-templates = Jinja2Templates(directory=Path("resources/templates"))
+templates = Jinja2Templates(directory=APP_DIR / "resources" / "templates")
 
 # creds
 TTL = config("TTL", default=3600, cast=int)
@@ -126,18 +126,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-"""
-Database
-"""
-
-
-# user model
-class UserInfo(db.Entity):
-    username = Required(str, unique=True)
-    hashed_password = Required(str)
-    email = Optional(str)
 
 
 """
@@ -300,7 +288,7 @@ def health_check():
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    with open(Path("resources/templates/login.html")) as f:
+    with open(APP_DIR / "resources" / "templates" / "login.html") as f:
         return HTMLResponse(content=f.read(), status_code=200)
 
 

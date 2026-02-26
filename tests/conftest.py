@@ -7,11 +7,6 @@ from unittest.mock import MagicMock, patch
 root_path = Path(__file__).resolve().parents[1]
 app_path = root_path / "app"
 
-# App modules use relative file paths (channels.csv, resources/templates, etc.)
-# expecting cwd to be app/. pythonpath in pyproject.toml handles imports,
-# but chdir is still required for filesystem I/O with relative paths.
-os.chdir(app_path)
-
 # Use SQLite for unit/integration tests (no PostgreSQL required).
 # db.bind() and db.generate_mapping() are deferred to init_db(),
 # which is called during FastAPI lifespan startup.

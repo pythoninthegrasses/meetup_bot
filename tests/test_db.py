@@ -59,3 +59,20 @@ class TestDbInstance:
         from db import init_db
 
         assert callable(init_db)
+
+    def test_entities_defined_on_db(self):
+        """Schedule and UserInfo entities are defined on the shared db."""
+        from db import Schedule, UserInfo, db
+
+        assert "Schedule" in db.entities
+        assert "UserInfo" in db.entities
+        assert db.entities["Schedule"] is Schedule
+        assert db.entities["UserInfo"] is UserInfo
+
+    def test_app_dir_is_absolute(self):
+        """APP_DIR points to the app/ directory."""
+        from db import APP_DIR
+
+        assert APP_DIR.is_absolute()
+        assert APP_DIR.name == "app"
+        assert (APP_DIR / "db.py").exists()
