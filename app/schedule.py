@@ -42,7 +42,8 @@ class Schedule(db.Entity):
 DB_PASS = DB_PASS.strip('"')
 
 # postgres db
-db.bind(provider="postgres", user=DB_USER, password=DB_PASS, host=DB_HOST, database=DB_NAME, port=DB_PORT, sslmode="require")
+DB_SSLMODE = config("DB_SSLMODE", default="prefer")
+db.bind(provider="postgres", user=DB_USER, password=DB_PASS, host=DB_HOST, database=DB_NAME, port=DB_PORT, sslmode=DB_SSLMODE)
 
 # generate mapping
 db.generate_mapping(create_tables=True)

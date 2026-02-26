@@ -89,3 +89,8 @@ DEP002 = [
     "uvicorn"
 ]
 
+[dependency-groups]
+dev = [
+    "testcontainers[postgres]>=4.14.1",
+]
+

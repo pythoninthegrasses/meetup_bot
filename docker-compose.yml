@@ -1,4 +1,22 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-meetup}
+      POSTGRES_PASSWORD: ${DB_PASS:-meetup}
+      POSTGRES_DB: ${DB_NAME:-meetup_bot}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-meetup}"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    networks:
+      - default
+
   meetup-bot:
     # container_name: meetup-bot
     image: ghcr.io/pythoninthegrass/meetup-bot
@@ -14,8 +32,14 @@ services:
       - ./app:/app
     ports:
       - ${PORT:-3100}:3100
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - default
+
+volumes:
+  pgdata:
 
 networks:
   default:

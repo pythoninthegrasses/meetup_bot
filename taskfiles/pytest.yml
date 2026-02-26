@@ -32,11 +32,8 @@ tasks:
       - pytest -m integration {{.CLI_ARGS}}
 
   test:e2e:
-    desc: "Run e2e tests (manages server lifecycle)"
+    desc: "Run e2e tests (testcontainers manages DB + server lifecycle)"
     cmds:
-      - task: server:start
-      - defer: { task: server:stop }
-      - task: server:wait
       - pytest -m e2e {{.CLI_ARGS}}
 
   test:property:
