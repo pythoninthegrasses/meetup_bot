@@ -1,5 +1,6 @@
 # ETC
 .bash_history
+.task/
 *.db
 *.key
 *.pem
