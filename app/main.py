@@ -420,7 +420,6 @@ def should_post_to_slack(auth: dict = Depends(ip_whitelist_or_auth), request: Re
             time_diff = abs((schedule_time_local - current_time_local).total_seconds() / 60)
             time_diff_rounded = ceil(time_diff)
 
-            # TODO: walk back to 5-10 minutes vs. 90 minutes
             # Check if current time is within n minutes of scheduled time
             should_post = time_diff_rounded <= 90
 
@@ -454,27 +453,6 @@ def post_slack(
     """
 
     check_auth(auth)
-
-    # TODO: debug
-    # should_post_result = should_post_to_slack()
-
-    # if isinstance(should_post_result, dict):
-    #     if not should_post_result.get("should_post", False) and not override:
-    #         time_diff = should_post_result.get("time_diff_minutes")
-    #         current_time = arrow.get(should_post_result.get("current_time"), "dddd HH:mm ZZZ").to(tz).format("dddd HH:mm ZZZ")
-    #         schedule_time = arrow.get(should_post_result.get("schedule_time"), "dddd HH:mm ZZZ").to(tz).format("dddd HH:mm ZZZ")
-
-    #         return {
-    #             "message": "Not scheduled to post at this time",
-    #             "reason": f"Time difference: {time_diff} minutes",
-    #             "current_time": current_time,
-    #             "scheduled_time": schedule_time,
-    #         }
-    # elif isinstance(should_post_result, bool):
-    #     if not should_post_result and not override:
-    #         return {"message": "Not scheduled to post at this time", "reason": "Schedule check returned False"}
-    # else:
-    #     return {"message": "Error checking schedule", "reason": "Unexpected return type from should_post_to_slack"}
 
     get_events(location=location, exclusions=exclusions)
 

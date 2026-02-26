@@ -61,7 +61,6 @@ else:
 headers = {"alg": 'RS256', "typ": 'JWT', "Accept": 'application/json', "Content-Type": 'application/x-www-form-urlencoded'}
 
 
-# TODO: Fix `Signature has expired\n[ERROR] Exception in ASGI application`; scheduler.sh only works for ~7 tries / 1 hour
 def gen_payload_data():
     """
     Generate payload data for JWT
