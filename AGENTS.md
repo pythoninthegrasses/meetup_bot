@@ -28,7 +28,7 @@ Always use Context7 MCP when I need library/API documentation, code generation, 
 - Linting: `uv run ruff check --fix --respect-gitignore` or `task lint`
 - Formatting: `uv run ruff format --respect-gitignore` or `task format`
 - Check dependencies: `uv run deptry .` or `task deptry`
-- Pre-commit hooks: `pre-commit run --all-files` or `task pre-commit`
+- Pre-commit hooks: `prek run --all-files` or `task pre-commit`
 
 ## Code Style Guidelines
 
