@@ -4,7 +4,7 @@ title: Add unit test suite with pytest markers and fixtures
 status: In Progress
 assignee: []
 created_date: '2026-02-26 18:06'
-updated_date: '2026-02-26 18:08'
+updated_date: '2026-02-26 18:46'
 labels:
   - testing
 dependencies: []
@@ -29,4 +29,5 @@ Set up unit test infrastructure: pytest markers (`@pytest.mark.unit`), shared fi
 - [ ] #3 Unit tests pass with `pytest -m unit` and require no external services
 - [ ] #4 conftest.py provides shared fixtures for mocking external deps (DB, API, Slack)
 - [ ] #5 task test:unit in taskfile runs unit tests via .venv
+- [ ] #6 All unit tests pass with pytest -m unit (no failures)
 <!-- AC:END -->

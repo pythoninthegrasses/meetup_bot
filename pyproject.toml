@@ -52,6 +52,7 @@ dev = [
 ]
 test = [
     "coverage<8.0.0,>=7.6.1",
+    "httpx>=0.27.0,<1",
     "hypothesis[cli]<7.0.0,>=6.112.1",
     "pytest<9.0.0,>=8.3.3",
     "pytest-asyncio<1.0.0,>=0.24.0",
@@ -77,3 +78,13 @@ DEP002 = [
     "ruff",
     "uvicorn"
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["app"]
+markers = [
+    "unit: pure unit tests (no external deps)",
+    "integration: integration tests (require running server)",
+    "e2e: end-to-end tests (full stack)",
+    "property: property-based tests (Hypothesis)",
+]
+asyncio_mode = "auto"
