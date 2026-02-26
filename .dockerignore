@@ -50,5 +50,4 @@
 **/scratch.*
 **/secrets.dev.yaml
 **/terraform
-**/Tiltfile
 **/values.dev.yaml
