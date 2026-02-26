@@ -1,0 +1,83 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(curl:*)",
+      "Bash(deno fmt:*)",
+      "Bash(deno lint:*)",
+      "Bash(fd:*)",
+      "Bash(git add:*)",
+      "Bash(git bisect:*)",
+      "Bash(git checkout:*)",
+      "Bash(git cherry-pick:*)",
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)",
+      "Bash(git log:*)",
+      "Bash(git merge:*)",
+      "Bash(git pull:*)",
+      "Bash(git push:*)",
+      "Bash(git push:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git revert:*)",
+      "Bash(git show:*)",
+      "Bash(git status:*)",
+      "Bash(head:*)",
+      "Bash(ln:*)",
+      "Bash(ls:*)",
+      "Bash(lsof:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(prek:*)",
+      "Bash(pytest:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(rg:*)",
+      "Bash(ruff:*)",
+      "Bash(sqlite3:*)",
+      "Bash(task:*)",
+      "Bash(tee:*)",
+      "Bash(timeout:*)",
+      "Bash(tree:*)",
+      "Bash(uv:*)",
+      "mcp__backlog__get_task_creation_guide",
+      "mcp__backlog__get_workflow_overview",
+      "mcp__backlog__get_workflow_overview",
+      "mcp__backlog__task_create",
+      "mcp__backlog__task_create",
+      "mcp__backlog__task_edit",
+      "mcp__backlog__task_edit",
+      "mcp__backlog__task_list",
+      "mcp__backlog__task_view",
+      "mcp__context7__query-docs",
+      "mcp__context7__query-docs",
+      "mcp__serena__activate_project",
+      "mcp__serena__find_file",
+      "mcp__serena__find_referencing_symbols",
+      "mcp__serena__find_symbol",
+      "mcp__serena__get_current_config",
+      "mcp__serena__get_symbols_overview",
+      "mcp__serena__initial_instructions",
+      "mcp__serena__list_dir",
+      "mcp__serena__read_memory",
+      "mcp__serena__think_about_task_adherence",
+      "Read(//tmp/**)",
+      "Read(//Users/**)",
+      "WebFetch(domain:meetup.com)",
+      "WebSearch"
+    ],
+    "deny": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git diff --name-only HEAD | xargs -r prek run --files"
+          }
+        ]
+      }
+    ]
+  }
+}
