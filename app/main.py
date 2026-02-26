@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator
 from colorama import Fore
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
+from db import db, init_db
 from decouple import config
 from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,7 +22,7 @@ from jose import JWTError, jwt
 from math import ceil
 from meetup_query import *
 from pathlib import Path
-from pony.orm import Database, Optional, PrimaryKey, Required, Set, db_session
+from pony.orm import Optional, PrimaryKey, Required, db_session
 from pydantic import BaseModel
 from schedule import check_and_revert_snooze, get_current_schedule_time, get_schedule, snooze_schedule
 from sign_jwt import main as gen_token
@@ -65,11 +66,8 @@ PORT = config("PORT", default=3000, cast=int)
 SECRET_KEY = config("SECRET_KEY")
 ALGORITHM = config("ALGORITHM", default="HS256")
 TOKEN_EXPIRE = config("TOKEN_EXPIRE", default=30, cast=int)
-DB_NAME = config("DB_NAME")
 DB_USER = config("DB_USER")
-DB_PASS = config("DB_PASS")
-DB_HOST = config("DB_HOST")
-DB_PORT = config("DB_PORT", default=5432, cast=int)
+DB_PASS = config("DB_PASS").strip('"')
 
 """
 IP Address Whitelisting
@@ -96,7 +94,8 @@ FastAPI app
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Create default user on startup."""
+    """Initialize database and create default user on startup."""
+    init_db()
     with db_session:
         if not UserInfo.exists(username=DB_USER):
             hashed_password = get_password_hash(DB_PASS)
@@ -133,32 +132,12 @@ app.add_middleware(
 Database
 """
 
-# init db
-db = Database()
-
 
 # user model
 class UserInfo(db.Entity):
     username = Required(str, unique=True)
     hashed_password = Required(str)
     email = Optional(str)
-
-
-# strip double quotes from string
-DB_PASS = DB_PASS.strip('"')
-
-# postgres db
-db.bind(
-    provider='postgres',
-    user=DB_USER,
-    password=DB_PASS,
-    host=DB_HOST,
-    database=DB_NAME,
-    port=DB_PORT,
-)
-
-# generate mapping
-db.generate_mapping(create_tables=True)
 
 
 """

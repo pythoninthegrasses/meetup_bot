@@ -3,15 +3,11 @@
 import arrow
 import time
 from datetime import datetime, timedelta
+from db import db, init_db
 from decouple import config
-from pony.orm import Database, Optional, PrimaryKey, Required, Set, db_session
+from pony.orm import Optional, PrimaryKey, Required, db_session
 
 # env
-DB_NAME = config("DB_NAME")
-DB_USER = config("DB_USER")
-DB_PASS = config("DB_PASS")
-DB_HOST = config("DB_HOST")
-DB_PORT = config("DB_PORT", default=5432, cast=int)
 TZ = config("TZ", default="America/Chicago")  # Set this to local timezone
 LOCAL_TIME = config("LOCAL_TIME", default="09:00")  # Local time for schedule
 
@@ -20,9 +16,6 @@ loc_time = arrow.now().to(TZ)
 time.tzset()
 days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 enabled_days = ["Monday", "Wednesday", "Friday"]
-
-# init db
-db = Database()
 
 
 # schedule model
@@ -36,17 +29,6 @@ class Schedule(db.Entity):
     snooze_until = Optional(datetime)
     original_schedule_time = Optional(str)
     last_changed = Required(datetime, default=datetime.utcnow)
-
-
-# strip double quotes from string
-DB_PASS = DB_PASS.strip('"')
-
-# postgres db
-DB_SSLMODE = config("DB_SSLMODE", default="prefer")
-db.bind(provider="postgres", user=DB_USER, password=DB_PASS, host=DB_HOST, database=DB_NAME, port=DB_PORT, sslmode=DB_SSLMODE)
-
-# generate mapping
-db.generate_mapping(create_tables=True)
 
 
 def local_to_utc(local_time_str, timezone):
@@ -192,6 +174,7 @@ def check_and_update_env_changes():
 
 
 def main():
+    init_db()
     print("Initializing schedule...")
     initialize_schedule()
     print("Schedule initialization complete.")

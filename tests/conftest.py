@@ -1,5 +1,4 @@
 import os
-import pony.orm
 import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -13,11 +12,10 @@ app_path = root_path / "app"
 # but chdir is still required for filesystem I/O with relative paths.
 os.chdir(app_path)
 
-# Prevent module-level DB connection during test collection.
-# schedule.py calls db.bind() and db.generate_mapping() at import time,
-# which fails without a live PostgreSQL server.
-pony.orm.Database.bind = lambda *a, **kw: None
-pony.orm.Database.generate_mapping = lambda *a, **kw: None
+# Use SQLite for unit/integration tests (no PostgreSQL required).
+# db.bind() and db.generate_mapping() are deferred to init_db(),
+# which is called during FastAPI lifespan startup.
+os.environ.setdefault("DEV", "true")
 
 # Set the path for groups.csv
 groups_csv_path = app_path / "groups.csv"

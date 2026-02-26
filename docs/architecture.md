@@ -29,6 +29,17 @@ schedule. It runs as a FastAPI web application backed by a PostgreSQL database.
 
 All application code lives under `app/`.
 
+### db.py -- Shared Database Configuration
+
+Provides a single `Database()` instance shared by all modules. The `init_db()`
+function reads the `DEV` environment variable to choose the provider:
+
+- `DEV=true` -- binds to SQLite (`db.sqlite`, created automatically)
+- `DEV=false` (default) -- binds to PostgreSQL using `DB_*` env vars
+
+`init_db()` is called during FastAPI lifespan startup, keeping database
+binding out of module-level scope so imports don't require a live database.
+
 ### sign_jwt.py -- JWT Authentication with Meetup
 
 Generates RS256-signed JWTs using a private key (PEM file or base64-encoded env var),
@@ -118,14 +129,15 @@ them to `groups.csv`. Run manually when the group list needs updating.
 
 ## Database
 
-PostgreSQL with two tables managed by PonyORM:
+Two tables managed by PonyORM on a single shared `Database` instance (`db.py`):
 
 - **UserInfo** (`main.py`) -- application users (username, hashed password, email)
 - **Schedule** (`schedule.py`) -- weekly posting schedule (day, time, timezone,
   enabled, snooze state)
 
-Both modules bind to the same database independently. The `UserInfo` table is
-seeded on startup with credentials from `DB_USER`/`DB_PASS`.
+The provider is selected at startup via the `DEV` env var: SQLite for local
+development (`DEV=true`), PostgreSQL for production (`DEV=false` or unset).
+The `UserInfo` table is seeded on startup with credentials from `DB_USER`/`DB_PASS`.
 
 ## Deployment
 
@@ -176,7 +188,8 @@ See `.env.example` for the full list. Key groups:
 - **Meetup API**: `CLIENT_ID`, `CLIENT_SECRET`, `SIGNING_KEY_ID`, `SIGNING_SECRET`,
   `SELF_ID`, `PRIV_KEY_B64`, `PUB_KEY_B64`, `TOKEN_URL`, `REDIRECT_URI`
 - **Slack**: `BOT_USER_TOKEN`, `USER_TOKEN`, `SLACK_WEBHOOK`, `CHANNEL`
-- **Database**: `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_HOST`, `DB_PORT`
+- **Database**: `DEV` (true/false), `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_HOST`,
+  `DB_PORT`, `DB_SSLMODE`
 - **Application**: `HOST`, `PORT`, `SECRET_KEY`, `ALGORITHM`, `TOKEN_EXPIRE`,
   `TZ`, `DAYS`, `TTL`, `OVERRIDE`
 
