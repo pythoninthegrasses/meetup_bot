@@ -1,6 +1,5 @@
 # ETC
 .bash_history
-.serena/
 *.db
 *.key
 *.pem
