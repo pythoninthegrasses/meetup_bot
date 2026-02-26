@@ -64,3 +64,20 @@ def mock_env():
     }
     with patch("decouple.config", side_effect=lambda key, **kwargs: defaults.get(key, kwargs.get("default", ""))):
         yield defaults
+
+
+@pytest.fixture
+def integration_client():
+    """TestClient for integration tests against the FastAPI app.
+
+    Requires app/.env or equivalent environment variables.
+    Skips if the app cannot be imported due to missing configuration.
+    """
+    try:
+        from app.main import app
+    except Exception as exc:
+        pytest.skip(f"Cannot import app (missing env vars or DB): {exc}")
+    from fastapi.testclient import TestClient
+
+    with TestClient(app) as client:
+        yield client

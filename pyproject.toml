@@ -61,6 +61,14 @@ test = [
     "pytest-xdist<4.0.0,>=3.6.1",
 ]
 
+[tool.pytest.ini_options]
+markers = [
+    "unit: unit tests (no external dependencies)",
+    "integration: integration tests (component interactions, TestClient)",
+    "e2e: end-to-end tests (requires running server)",
+    "property: property-based tests (Hypothesis)",
+]
+
 [tool.deptry]
 # DEP003: transitive deps
 ignore = [
