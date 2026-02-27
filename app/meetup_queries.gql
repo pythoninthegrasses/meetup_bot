@@ -120,22 +120,26 @@ query($urlname: String!) {
 }
 
 # query OKC area for programming groups' IDs
-# NOTE: unable to use vars for lat/lon and source (enum: EVENTS/GROUPS)
-{
-	"query": "programming",
-	"city": "Oklahoma City"
-}
-query ($query: String!, $city: String!) {
-	keywordSearch(
-		filter: {query: $query, lat: 35.467560, lon: -97.516426, city: $city, source: GROUPS}
+{"query": "programming"}
+query ($query: String!) {
+	groupSearch(
+		filter: {query: $query, lat: 35.467560, lon: -97.516426}
+		first: 50
 	) {
-		count
+		totalCount
 		pageInfo {
 			endCursor
+			hasNextPage
 		}
 		edges {
 			node {
 				id
+				name
+				urlname
+				city
+				proNetwork {
+					id
+				}
 			}
 		}
 	}

@@ -1,120 +1,124 @@
 #!/usr/bin/env python3
 
+import json
 import pandas as pd
-from icecream import ic
-from playwright.sync_api import Playwright, sync_playwright
+import sys
+from colorama import Fore
+from pathlib import Path
+from sign_jwt import main as gen_token
 
+info = "INFO:"
+error = "ERROR:"
+warning = "WARNING:"
+
+TECHLAHOMA_PRO_NETWORK_ID = "364335959210266624"
+BASE_URL = "https://www.meetup.com"
+
+SEARCH_QUERY = """
+query ($query: String!) {
+    groupSearch(
+        filter: {query: $query, lat: 35.467560, lon: -97.516426}
+        first: 50
+    ) {
+        totalCount
+        pageInfo {
+            endCursor
+            hasNextPage
+        }
+        edges {
+            node {
+                id
+                name
+                urlname
+                city
+                proNetwork {
+                    id
+                }
+            }
+        }
+    }
+}
 """
-Due to Meetup's GraphQL schema, third-party groups are not exposed in the API.
 
-Works around that by scraping the HTML of the groups page and extracting the group name (urlname).
-"""
-
-# verbose icecream
-ic.configureOutput(includeContext=True)
-
-# pandas don't truncate output
-pd.set_option('display.max_rows', None)
-pd.set_option('display.max_columns', None)
-pd.set_option('display.max_colwidth', None)
-
-# scrape the url for subdomain (i.e., 'okc-fp')
-base_url = "https://www.meetup.com"
-# * # anyDistance (default), twoMiles, fiveMiles, tenMiles, twentyFiveMiles, fiftyMiles, hundredMiles
-distance = "tenMiles"
-source = "GROUPS"  # EVENTS (default), GROUPS
-category_id = "546"  # technology groups
-location = "us--ok--Oklahoma%20City"  # OKC
-
-url = base_url + "/find/?distance=" + distance + "&source=" + source + "&categoryId=" + category_id + "&location=" + location
+SEARCH_VARS = {"query": "programming"}
 
 
-def run(playwright: Playwright) -> None:
-    """
-    Open URL, scrape for subdomain, and save to CSV.
+def parse_search_response(response: dict) -> list[dict]:
+    """Extract group data from a groupSearch GraphQL response."""
+    if "errors" in response:
+        for err in response["errors"]:
+            print(f"{Fore.YELLOW}{warning:<10}{Fore.RESET}GraphQL error: {err.get('message', err)}")
+        return []
 
-    Due to JSHandler type, have to export to CSV, import, then split at the second to last '/' to get the 'urlname' field.
-    """
-
-    # ! run `poetry run playwright install chromium` first
-
-    # open browser
-    browser = playwright.chromium.launch(headless=True)
-
-    # give OKC location and allow geolocation to be used
-    context = browser.new_context(
-        geolocation={"latitude": 35.467560, "longitude": -97.516426},
-        permissions=["geolocation"],
-    )
-
-    # Open new page
-    page = context.new_page()
-
-    # Go to https://www.meetup.com/find/
-    page.goto(url)
-
-    # xpath
-    # //*[@id="group-card-in-search-results"]
-
-    handles = []
-
-    # loop through each group and get href from id="group-card-in-search-results"
-    handles = [group.get_property("href") for group in page.query_selector_all("#group-card-in-search-results")]
-
-    # page.pause()    # pause for debugging
-
-    context.close()
-    browser.close()
-
-    return handles
+    edges = response.get("data", {}).get("groupSearch", {}).get("edges", [])
+    groups = []
+    for edge in edges:
+        node = edge.get("node", {})
+        urlname = node.get("urlname")
+        if not urlname:
+            continue
+        pro_network = node.get("proNetwork")
+        groups.append(
+            {
+                "urlname": urlname,
+                "pro_network_id": pro_network["id"] if pro_network else None,
+            }
+        )
+    return groups
 
 
-def process(handles):
-    """
-    Process handles (list of JSHandle objects) and save to CSV.
-    """
+def filter_groups(groups: list[dict], exclude_pro_network: str = TECHLAHOMA_PRO_NETWORK_ID) -> list[dict]:
+    """Filter out groups affiliated with a pro network (default: Techlahoma Foundation)."""
+    return [g for g in groups if g.get("pro_network_id") != exclude_pro_network]
 
-    # exclusions
-    exclusions = [
-        "oklahoma-city-servicenow-development-meetup",
-        "oklahoma-clean-technology-association",
-        "reddirtbitcoiners",
-    ]
 
-    # convert jshandle to string
-    handles = [str(handle) for handle in handles]
+def write_groups_csv(groups: list[dict], output_path: str = "groups.csv") -> None:
+    """Write groups to CSV with url,urlname columns, sorted by urlname."""
+    df = pd.DataFrame(groups)
+    if df.empty:
+        df = pd.DataFrame(columns=["url", "urlname"])
+    else:
+        df["url"] = df["urlname"].apply(lambda x: f"{BASE_URL}/{x}/")
+        df = df[["url", "urlname"]].sort_values(by="urlname")
+    df.to_csv(output_path, index=False)
 
-    # remove exclusions (get subdirectory)
-    handles = [handle for handle in handles if handle.split("/")[-2] not in exclusions]
 
-    # dataframe of URLs
-    df = pd.DataFrame(handles)
-    df.columns = ["url"]
-    ic(df.head(df.shape[0]))
+def search_groups(token: str, query: str = SEARCH_QUERY, variables: dict = SEARCH_VARS) -> dict:
+    """Send keywordSearch GraphQL request and return raw response."""
+    from meetup_query import http_client
 
-    # export raw CSV
-    df.to_csv("raw/scratch.csv", index=False)
+    endpoint = "https://api.meetup.com/gql-ext"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json; charset=utf-8"}
 
-    # read groups.csv
-    df = pd.read_csv("raw/scratch.csv")
-
-    # add column for urlname (group name) (split at second to last field)
-    df["urlname"] = df["url"].apply(lambda x: x.split("/")[-2])
-
-    # sort by urlname
-    df = df.sort_values(by=["urlname"])
-
-    # export final CSV
-    df.to_csv("groups.csv", index=False)
+    try:
+        r = http_client.post(endpoint, json={"query": query, "variables": variables}, headers=headers)
+        print(f"{Fore.GREEN}{info:<10}{Fore.RESET}groupSearch HTTP: {r.status_code}")
+        return r.json()
+    except Exception as e:
+        print(f"{Fore.RED}{error:<10}{Fore.RESET}HTTP request failed: {e}")
+        sys.exit(1)
 
 
 def main():
-    # scrape
-    with sync_playwright() as playwright:
-        handles = run(playwright)
+    tokens = gen_token()
+    if not tokens:
+        print(f"{Fore.RED}{error:<10}{Fore.RESET}Failed to get access tokens")
+        sys.exit(1)
 
-    # process
-    process(handles)
+    access_token = tokens.get("access_token")
+    if not access_token:
+        print(f"{Fore.RED}{error:<10}{Fore.RESET}No access token in response")
+        sys.exit(1)
+
+    response = search_groups(access_token)
+    groups = parse_search_response(response)
+    groups = filter_groups(groups)
+
+    script_dir = Path(__file__).resolve().parent
+    output_path = script_dir / "groups.csv"
+    write_groups_csv(groups, str(output_path))
+
+    print(f"{Fore.GREEN}{info:<10}{Fore.RESET}Wrote {len(groups)} groups to {output_path}")
 
 
 if __name__ == "__main__":
