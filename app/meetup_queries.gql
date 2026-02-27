@@ -120,10 +120,11 @@ query($urlname: String!) {
 }
 
 # query OKC area for programming groups' IDs
-{"query": "programming"}
-query ($query: String!) {
+# topicCategoryId 546 = Technology (from topicCategories query)
+{"query": "programming", "topicCategoryId": "546"}
+query ($query: String!, $topicCategoryId: ID) {
 	groupSearch(
-		filter: {query: $query, lat: 35.467560, lon: -97.516426}
+		filter: {query: $query, lat: 35.467560, lon: -97.516426, topicCategoryId: $topicCategoryId}
 		first: 50
 	) {
 		totalCount

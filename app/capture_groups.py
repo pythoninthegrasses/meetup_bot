@@ -12,12 +12,13 @@ error = "ERROR:"
 warning = "WARNING:"
 
 TECHLAHOMA_PRO_NETWORK_ID = "364335959210266624"
+TECHNOLOGY_TOPIC_CATEGORY_ID = "546"
 BASE_URL = "https://www.meetup.com"
 
 SEARCH_QUERY = """
-query ($query: String!) {
+query ($query: String!, $topicCategoryId: ID) {
     groupSearch(
-        filter: {query: $query, lat: 35.467560, lon: -97.516426}
+        filter: {query: $query, lat: 35.467560, lon: -97.516426, topicCategoryId: $topicCategoryId}
         first: 50
     ) {
         totalCount
@@ -40,7 +41,7 @@ query ($query: String!) {
 }
 """
 
-SEARCH_VARS = {"query": "programming"}
+SEARCH_VARS = {"query": "programming", "topicCategoryId": TECHNOLOGY_TOPIC_CATEGORY_ID}
 
 
 def parse_search_response(response: dict) -> list[dict]:
