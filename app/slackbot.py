@@ -107,7 +107,6 @@ def send_message(message, channel_id):
         print(f"Got an error: {e.response['error']}")
 
 
-# TODO: transform json response vs. file
 def main():
     # open json file and convert to list of strings
     msg = fmt_json(json_fn)

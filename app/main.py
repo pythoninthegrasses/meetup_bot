@@ -77,7 +77,7 @@ IP Address Whitelisting
 
 class IPConfig(BaseModel):
     whitelist: list[str] = ["localhost", "127.0.0.1"]
-    public_ips: list[str] = []  # TODO: add whitelisted public IPs here
+    public_ips: list[str] = []
 
 
 ip_config = IPConfig()
@@ -197,7 +197,6 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
-# TODO: store user session in cookie
 async def get_current_user(token: str | None = Depends(oauth2_scheme)):
     """Get current user"""
     if token is None:
@@ -311,7 +310,6 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
         return RedirectResponse(url="/docs", status_code=303)
 
 
-# TODO: use refresh token to get new access token
 @api_router.get("/token")
 def generate_token(current_user: User = Depends(get_current_active_user)):
     """
@@ -339,7 +337,6 @@ def generate_token(current_user: User = Depends(get_current_active_user)):
     return access_token, refresh_token
 
 
-# TODO: decouple export from formatted response
 @api_router.get("/events")
 def get_events(
     auth: dict | User = Depends(ip_whitelist_or_auth),
@@ -423,7 +420,6 @@ def should_post_to_slack(auth: dict = Depends(ip_whitelist_or_auth), request: Re
             # Check if current time is within n minutes of scheduled time
             should_post = time_diff_rounded <= 90
 
-            # TODO: verify if it's actually CST or CDT
             return {
                 "should_post": should_post,
                 "current_time": current_time_local.format("dddd HH:mm ZZZ"),
@@ -495,7 +491,6 @@ def snooze_slack_post(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-# TODO: test IP whitelisting
 @api_router.get("/schedule")
 def get_current_schedule(auth: dict | User = Depends(ip_whitelist_or_auth)):
     """

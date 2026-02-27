@@ -29,7 +29,6 @@ location = "us--ok--Oklahoma%20City"  # OKC
 url = base_url + "/find/?distance=" + distance + "&source=" + source + "&categoryId=" + category_id + "&location=" + location
 
 
-# TODO: skip groups that are a part of the Techlahoma Foundation
 def run(playwright: Playwright) -> None:
     """
     Open URL, scrape for subdomain, and save to CSV.

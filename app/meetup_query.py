@@ -296,7 +296,6 @@ def format_response(response, location: str = "Oklahoma City", exclusions: str =
                     print(f"{Fore.YELLOW}{warning:<10}{Fore.RESET}Skipping group due to empty response")
                 else:
                     data = response_json['data']['groupByUrlname']['events']['edges']
-                    # TODO: handle no upcoming events to fallback on initial response
                     if response_json['data']['groupByUrlname']['city'] != location:
                         print(f"{Fore.RED}{error:<10}{Fore.RESET}No data for {location} found")
             except KeyError as e:
@@ -380,7 +379,6 @@ def sort_json(filename) -> None:
     # * negative lookahead only matches first digit at the beginning of the line (e.g., 1/0001 vs. 2022)
     # date_regex = r'^1(?![\d])|^0001(?![\d])'
 
-    # TODO: get precise date from event to determine year
     # choose current year if 7 days from now is before EOY
     # if arrow.now().year == arrow.now().shift(days=7).year:
     #     year = str(arrow.now(TZ).year)
@@ -456,11 +454,6 @@ def export_to_file(response, type: str = 'json', exclusions: str = '') -> None:
         # convert escaped unicode to utf-8 encoding
         data = json.loads(df.to_json(orient='records', force_ascii=False))
 
-        # TODO: don't wipe file with existing entries -- just remove duplicate key/value pairs
-        # * cf."[{ "name": "SheCodesOKC", "date": "Tue 2/28 4:30 pm"," ... }]" -> "[]" (empty list)
-        # ! Only happens locally; doesn't happen on server
-        # ! Could be related to timestamp/ttl and/or removing duplicates logic
-        # write json to file
         # if file exists, is less than n minutes old, append to file
         if (
             Path(json_fn).exists()
@@ -496,7 +489,6 @@ def main():
     # exclude keywords in event name and title (will miss events with keyword in description)
     exclusions = ['36\u00b0N', 'Tulsa', 'Nerdy Girls', 'Bitcoin']
 
-    # TODO: reduce `format_response` calls to 1
     # first-party query
     response = send_request(access_token, query, vars)
     # format_response(response, exclusions=exclusions)                      # don't need if exporting to file

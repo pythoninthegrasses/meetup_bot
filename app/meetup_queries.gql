@@ -119,9 +119,6 @@ query($urlname: String!) {
 	}
 }
 
-
-# TODO: QA node ID == group ID
-# I.e., https://www.meetup.com/find/?suggested=true&source=GROUPS&keywords=programming&categoryId=546&distance=tenMiles&location=us--ok--Oklahoma%20City
 # query OKC area for programming groups' IDs
 # NOTE: unable to use vars for lat/lon and source (enum: EVENTS/GROUPS)
 {
@@ -144,4 +141,3 @@ query ($query: String!, $city: String!) {
 	}
 }
 
-# TODO: if group ID is found, get events for that group; else, use `requests` to parse `urlname` from URL
