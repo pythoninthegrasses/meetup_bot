@@ -26,10 +26,7 @@ env:
   CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
   CSV_FN: ${{ vars.CSV_FN }}
   DAYS: ${{ vars.DAYS }}
-  DB_HOST: ${{ secrets.DB_HOST }}
-  DB_NAME: ${{ secrets.DB_NAME }}
   DB_PASS: ${{ secrets.DB_PASS }}
-  DB_PORT: ${{ vars.DB_PORT }}
   DB_USER: ${{ secrets.DB_USER }}
   JSON_FN: ${{ vars.JSON_FN }}
   PORT: ${{ vars.PORT }}
@@ -63,10 +60,7 @@ jobs:
           CLIENT_SECRET: ${{ env.CLIENT_SECRET }}
           CSV_FN: ${{ env.CSV_FN }}
           DAYS: ${{ env.DAYS }}
-          DB_HOST: ${{ env.DB_HOST }}
-          DB_NAME: ${{ env.DB_NAME }}
           DB_PASS: ${{ env.DB_PASS }}
-          DB_PORT: ${{ env.DB_PORT }}
           DB_USER: ${{ env.DB_USER }}
           JSON_FN: ${{ env.JSON_FN }}
           PORT: ${{ env.PORT }}

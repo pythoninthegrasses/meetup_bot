@@ -4,7 +4,7 @@
 
 meetup_bot queries the Meetup GraphQL API for upcoming tech community events in the
 Oklahoma City area and posts formatted summaries to Slack channels on a configurable
-schedule. It runs as a FastAPI web application backed by a PostgreSQL database.
+schedule. It runs as a FastAPI web application backed by a SQLite database.
 
 ## System Context
 
@@ -19,7 +19,7 @@ schedule. It runs as a FastAPI web application backed by a PostgreSQL database.
                                        v
                             +----------+----------+
                             |                     |
-                            |   PostgreSQL        |
+                            |   SQLite            |
                             |   (Users + Schedule)|
                             |                     |
                             +---------------------+
@@ -32,10 +32,9 @@ All application code lives under `app/`.
 ### db.py -- Shared Database Configuration
 
 Provides a single `Database()` instance shared by all modules. The `init_db()`
-function reads the `DEV` environment variable to choose the provider:
-
-- `DEV=true` -- binds to SQLite (`db.sqlite`, created automatically)
-- `DEV=false` (default) -- binds to PostgreSQL using `DB_*` env vars
+function binds to SQLite using the `DB_PATH` environment variable (default:
+`/data/meetup_bot.db`). WAL mode is enabled after mapping generation for
+concurrent read access.
 
 `init_db()` is called during FastAPI lifespan startup, keeping database
 binding out of module-level scope so imports don't require a live database.
@@ -111,11 +110,12 @@ A POSIX shell alternative to `scheduler.py`. Authenticates against the FastAPI
 `/token` endpoint with curl, then hits `/api/slack` or `/api/events`. Used for
 cron-based deployments.
 
-### capture_groups.py -- Group Discovery (Playwright)
+### capture_groups.py -- Group Discovery (GraphQL)
 
-Scrapes the Meetup website with Playwright (headless Chromium) to discover
-technology groups in the OKC area. Extracts group URL slugs (`urlname`) and writes
-them to `groups.csv`. Run manually when the group list needs updating.
+Queries the Meetup GraphQL API (`keywordSearch`) to discover technology groups in
+the OKC area. Filters out Techlahoma Foundation affiliated groups by pro network ID.
+Extracts group URL slugs (`urlname`) and writes them to `groups.csv`. Run manually
+when the group list needs updating.
 
 ## Data Files
 
@@ -135,30 +135,24 @@ Two tables managed by PonyORM on a single shared `Database` instance (`db.py`):
 - **Schedule** (`schedule.py`) -- weekly posting schedule (day, time, timezone,
   enabled, snooze state)
 
-The provider is selected at startup via the `DEV` env var: SQLite for local
-development (`DEV=true`), PostgreSQL for production (`DEV=false` or unset).
-The `UserInfo` table is seeded on startup with credentials from `DB_USER`/`DB_PASS`.
+SQLite is the sole database provider. The file location is configured via
+`DB_PATH` (default: `/data/meetup_bot.db`). WAL mode is enabled for concurrent
+access. The `UserInfo` table is seeded on startup with credentials from
+`DB_USER`/`DB_PASS`.
 
 ## Deployment
 
 ### Docker
 
-Multi-stage build (`Dockerfile.web`):
+Multi-stage build (`Dockerfile`):
 
 1. **builder** -- installs uv, creates virtualenv at `/opt/venv`, installs
    dependencies from `pyproject.toml`.
-2. **runner** -- slim image with a non-root `appuser`, copies the venv and app
-   code, exposes the configured port, runs `startup.sh`.
+2. **runner** -- slim image with a non-root `appuser`, creates `/data` directory
+   for the SQLite database, copies the venv and app code, exposes the configured
+   port, runs `startup.sh`.
 
 `startup.sh` launches gunicorn with uvicorn workers (`-k uvicorn.workers.UvicornWorker`).
-
-### Heroku
-
-`heroku.yml` declares the Docker build and provisions:
-
-- Heroku Scheduler (cron trigger)
-- Heroku PostgreSQL
-- Coralogix (logging)
 
 ### GitHub Container Registry
 
@@ -167,8 +161,9 @@ The `docker.yml` workflow builds multi-arch images (amd64, arm64) on pushes to
 
 ### Docker Compose
 
-Single-service compose file for local development. Mounts `./app` as a volume and
-forwards the configured port.
+Single-service compose file for local development. Mounts `./app` as a volume,
+`db_data` volume at `/data` for persistent SQLite storage, and forwards the
+configured port.
 
 ## CI/CD Pipelines
 
@@ -178,7 +173,6 @@ forwards the configured port.
 | `docker.yml` | Push to main/tags | Build and publish Docker image |
 | `infosec.yml` | PR, push, daily cron | Gitleaks credential scanning |
 | `release-please.yml` | Push to main | Automated releases and changelogs |
-| `smoke-test.yml` | PR, push | Smoke test against running container |
 
 ## Configuration
 
@@ -188,8 +182,7 @@ See `.env.example` for the full list. Key groups:
 - **Meetup API**: `CLIENT_ID`, `CLIENT_SECRET`, `SIGNING_KEY_ID`, `SIGNING_SECRET`,
   `SELF_ID`, `PRIV_KEY_B64`, `PUB_KEY_B64`, `TOKEN_URL`, `REDIRECT_URI`
 - **Slack**: `BOT_USER_TOKEN`, `USER_TOKEN`, `SLACK_WEBHOOK`, `CHANNEL`
-- **Database**: `DEV` (true/false), `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_HOST`,
-  `DB_PORT`, `DB_SSLMODE`
+- **Database**: `DB_PATH` (default: `/data/meetup_bot.db`), `DB_USER`, `DB_PASS`
 - **Application**: `HOST`, `PORT`, `SECRET_KEY`, `ALGORITHM`, `TOKEN_EXPIRE`,
   `TZ`, `DAYS`, `TTL`, `OVERRIDE`
 
@@ -198,7 +191,7 @@ See `.env.example` for the full list. Key groups:
 | Package | Role |
 | ------- | ---- |
 | FastAPI + uvicorn + gunicorn | Web framework and server |
-| PonyORM + psycopg2 | ORM and PostgreSQL driver |
+| PonyORM | ORM (SQLite provider) |
 | requests + requests-cache | HTTP client with caching |
 | slack-sdk | Slack Web API client |
 | PyJWT + cryptography | RS256 JWT signing for Meetup auth |
@@ -206,4 +199,3 @@ See `.env.example` for the full list. Key groups:
 | arrow | Timezone-aware date/time handling |
 | pandas | Data transformation and filtering |
 | bcrypt | Password hashing |
-| Playwright | Browser-based group discovery |

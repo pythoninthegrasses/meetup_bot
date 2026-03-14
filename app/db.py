@@ -28,30 +28,17 @@ class UserInfo(db.Entity):
     email = Optional(str)
 
 
-def get_db_config(dev=None):
-    """Return provider-specific bind kwargs based on DEV env var."""
-    if dev is None:
-        dev = config("DEV", default="false").lower() in ("true", "1", "yes")
-
-    if dev:
-        return {
-            "provider": "sqlite",
-            "filename": str(APP_DIR / "db.sqlite"),
-            "create_db": True,
-        }
-
+def get_db_config():
+    """Return SQLite bind kwargs."""
+    db_path = config("DB_PATH", default="/data/meetup_bot.db")
     return {
-        "provider": "postgres",
-        "user": config("DB_USER"),
-        "password": config("DB_PASS").strip('"'),
-        "host": config("DB_HOST"),
-        "database": config("DB_NAME"),
-        "port": config("DB_PORT", default=5432, cast=int),
-        "sslmode": config("DB_SSLMODE", default="prefer"),
+        "provider": "sqlite",
+        "filename": db_path,
+        "create_db": True,
     }
 
 
-def init_db(dev=None):
+def init_db():
     """Bind the shared Database instance and generate mappings.
 
     Safe to call multiple times; subsequent calls are no-ops.
@@ -60,7 +47,14 @@ def init_db(dev=None):
     if _initialized:
         return
 
-    db_config = get_db_config(dev=dev)
+    db_config = get_db_config()
     db.bind(**db_config)
     db.generate_mapping(create_tables=True)
+
+    import sqlite3
+
+    conn = sqlite3.connect(db_config["filename"])
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.close()
+
     _initialized = True

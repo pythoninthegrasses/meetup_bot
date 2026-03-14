@@ -25,7 +25,6 @@ dependencies = [
     "numpy>=2.2.1,<3",
     "pandas>=2.2.3,<3",
     "pony>=0.7.16,<0.8",
-    "psycopg2-binary>=2.9.10,<3",
     "PyJWT[crypto]>=2.10.1,<3",
     "python-decouple~=3.8",
     "python-jose[cryptography]>=3.3.0,<4",
@@ -87,8 +86,4 @@ DEP002 = [
     "uvicorn"
 ]
 
-[dependency-groups]
-dev = [
-    "testcontainers[postgres]>=4.14.1",
-]
 

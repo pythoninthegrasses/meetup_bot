@@ -1,15 +1,15 @@
 import httpx
 import os
 import pytest
+import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
-from testcontainers.postgres import PostgresContainer
 
 DB_USER = "e2e_user"
 DB_PASS = "e2e_pass"
-DB_NAME = "e2e_db"
 
 
 def _find_free_port():
@@ -24,17 +24,9 @@ BASE_URL = f"http://localhost:{E2E_PORT}"
 
 @pytest.fixture(scope="session")
 def e2e_server():
-    """Start a PostgresContainer and uvicorn subprocess for the full e2e session."""
-    postgres = PostgresContainer(
-        "postgres:16-alpine",
-        username=DB_USER,
-        password=DB_PASS,
-        dbname=DB_NAME,
-    )
-    postgres.start()
-
-    host = postgres.get_container_host_ip()
-    port = postgres.get_exposed_port(5432)
+    """Start a uvicorn subprocess with a temporary SQLite database for the full e2e session."""
+    tmp_dir = tempfile.mkdtemp(prefix="e2e_")
+    db_path = os.path.join(tmp_dir, "e2e_meetup_bot.db")
 
     app_dir = os.path.join(os.path.dirname(__file__), "..", "app")
     app_dir = os.path.abspath(app_dir)
@@ -42,19 +34,17 @@ def e2e_server():
     env = os.environ.copy()
     env.update(
         {
-            "DB_HOST": host,
-            "DB_PORT": str(port),
-            "DB_NAME": DB_NAME,
+            "DB_PATH": db_path,
             "DB_USER": DB_USER,
             "DB_PASS": DB_PASS,
-            "DB_SSLMODE": "disable",
             "PORT": str(E2E_PORT),
             "HOST": "localhost",
             "SECRET_KEY": "e2e-test-secret-key",
             "ALGORITHM": "HS256",
             "TOKEN_EXPIRE": "30",
-            "OVERRIDE": "true",
             "DEV": "false",
+            "OVERRIDE": "true",
+            "DISABLE_IP_WHITELIST": "true",
         }
     )
 
@@ -90,7 +80,7 @@ def e2e_server():
         stdout = proc.stdout.read().decode() if proc.stdout else ""
         stderr = proc.stderr.read().decode() if proc.stderr else ""
         proc.kill()
-        postgres.stop()
+        shutil.rmtree(tmp_dir, ignore_errors=True)
         pytest.fail(f"Server failed to start within 30s.\nstdout: {stdout}\nstderr: {stderr}")
 
     yield {
@@ -104,7 +94,7 @@ def e2e_server():
         proc.wait(timeout=5)
     except subprocess.TimeoutExpired:
         proc.kill()
-    postgres.stop()
+    shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 @pytest.fixture

@@ -75,6 +75,9 @@ IP Address Whitelisting
 """
 
 
+DISABLE_IP_WHITELIST = config("DISABLE_IP_WHITELIST", default=False, cast=bool)
+
+
 class IPConfig(BaseModel):
     whitelist: list[str] = ["localhost", "127.0.0.1"]
     public_ips: list[str] = []
@@ -232,7 +235,7 @@ async def get_current_active_user(current_user: User | None = Depends(get_curren
 
 
 async def ip_whitelist_or_auth(request: Request, current_user: User | None = Depends(get_current_active_user)):
-    if DEV or is_ip_allowed(request):
+    if DEV or (not DISABLE_IP_WHITELIST and is_ip_allowed(request)):
         return {"bypass_auth": True}
 
     if current_user is None:

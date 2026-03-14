@@ -32,7 +32,7 @@ tasks:
       - pytest -m integration {{.CLI_ARGS}}
 
   test:e2e:
-    desc: "Run e2e tests (testcontainers manages DB + server lifecycle)"
+    desc: "Run e2e tests (SQLite temp DB + uvicorn subprocess)"
     cmds:
       - pytest -m e2e {{.CLI_ARGS}}
 

@@ -5,7 +5,7 @@ shopt: ['globstar']
 
 env:
   COMPOSE_FILE: "{{.TLD}}/docker-compose.yml"
-  DOCKERFILE: "{{.TLD}}/Dockerfile.web"
+  DOCKERFILE: "{{.TLD}}/Dockerfile"
   PLATFORM:
     sh: "echo ${PLATFORM:-linux/amd64}"
   REGISTRY:
@@ -46,7 +46,7 @@ tasks:
     summary: |
       Build the docker image with the specified dockerfile.
 
-      The default dockerfile is Dockerfile.web.
+      The default dockerfile is Dockerfile.
 
       USAGE
         task docker:build

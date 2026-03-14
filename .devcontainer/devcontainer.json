@@ -4,7 +4,7 @@
 	"name": "Dev Environment",
 	// "build": {
 	// 	"context": "..",
-	// 	"dockerfile": "../Dockerfile.web"
+	// 	"dockerfile": "../Dockerfile"
 	// },
   "service": "meetup-bot",
   "workspaceFolder": "/app",

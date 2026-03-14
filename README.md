@@ -24,7 +24,6 @@ Use Meetup Pro API to send Slack messages before events occur.
 ## Minimum Requirements
 
 * [Python 3.11+](https://www.python.org/downloads/)
-* [Heroku CLI](https://devcenter.heroku.com/articles/heroku-cli)
 * [Create a Meetup API key](https://secure.meetup.com/meetup_api/key/)
 * Slack
   * [Create a Slack app](https://api.slack.com/apps)
@@ -96,7 +95,7 @@ devbox run test
 cd ./app
 
 # build image
-docker build -f Dockerfile.web --progress=plain -t meetup_bot:latest .
+docker build -f Dockerfile --progress=plain -t meetup_bot:latest .
 
 # run image
 docker run --name meetup_bot -it --rm --env-file .env -p 3000:3000 meetup_bot bash

@@ -1,18 +1,15 @@
 import os
 import pytest
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-# Get the path to the root directory of the project
 root_path = Path(__file__).resolve().parents[1]
 app_path = root_path / "app"
 
-# Use SQLite for unit/integration tests (no PostgreSQL required).
-# db.bind() and db.generate_mapping() are deferred to init_db(),
-# which is called during FastAPI lifespan startup.
-os.environ.setdefault("DEV", "true")
+# Use a temp directory for SQLite during tests
+os.environ.setdefault("DB_PATH", os.path.join(tempfile.mkdtemp(), "test_meetup_bot.db"))
 
-# Set the path for groups.csv
 groups_csv_path = app_path / "groups.csv"
 
 
