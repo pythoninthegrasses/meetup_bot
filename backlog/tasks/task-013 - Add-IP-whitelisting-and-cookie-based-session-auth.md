@@ -4,13 +4,14 @@ title: Add IP whitelisting and cookie-based session auth
 status: In Progress
 assignee: []
 created_date: '2026-02-27 00:54'
-updated_date: '2026-02-27 00:56'
+updated_date: '2026-02-27 01:14'
 labels:
   - auth
 dependencies: []
 references:
   - app/main.py
 priority: medium
+ordinal: 2000
 ---
 
 ## Description

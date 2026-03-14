@@ -1,15 +1,17 @@
 ---
 id: TASK-017
 title: Handle missing events and imprecise date parsing
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-02-27 00:54'
+updated_date: '2026-02-27 01:14'
 labels:
   - bug
 dependencies: []
 references:
   - app/meetup_query.py
 priority: medium
+ordinal: 4000
 ---
 
 ## Description
