@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/pythoninthegrass/icarus/main/schemas/dokploy.schema.json
+
+project:
+  name: meetup-bot
+  description: |
+    Meetup Pro API Slack bot with FastAPI
+
+  env_targets: [web]
+
+  deploy_order:
+    - [web]
+
+github:
+  owner: pythoninthegrass
+  repository: meetup_bot
+  branch: main
+
+environments:
+  prod:
+    github:
+      branch: main
+    apps:
+      web:
+        domain:
+          host: meetupbot.exographicskip.com
+          port: 3100
+          https: true
+          certificateType: letsencrypt
+
+apps:
+  - name: web
+    source: github
