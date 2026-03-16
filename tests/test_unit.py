@@ -4,6 +4,7 @@ import os
 import pandas as pd
 import pytest
 import warnings
+from pathlib import Path
 from capture_groups import (
     TECHLAHOMA_PRO_NETWORK_ID,
     filter_groups,
@@ -784,6 +785,29 @@ def test_main(mock_sort_json, mock_export, mock_batched, mock_send, mock_gen_tok
     mock_batched.assert_called_once()
     assert mock_export.call_count == 2
     mock_sort_json.assert_called_once()
+
+
+@pytest.mark.unit
+class TestGetAccessTokenUsesHttpx:
+    """sign_jwt.get_access_token must use httpx, not requests."""
+
+    def test_no_requests_import_in_sign_jwt(self):
+        """sign_jwt should not import the requests library."""
+        source = (Path(__file__).resolve().parent.parent / "app" / "sign_jwt.py").read_text()
+        assert "import requests" not in source, "sign_jwt.py still imports requests"
+        assert "import httpx" in source, "sign_jwt.py should import httpx"
+
+    def test_no_requests_import_in_scheduler(self):
+        """scheduler should not import the requests library."""
+        source = (Path(__file__).resolve().parent.parent / "app" / "scheduler.py").read_text()
+        assert "import requests" not in source, "scheduler.py still imports requests"
+        assert "import httpx" in source, "scheduler.py should import httpx"
+
+    def test_get_access_token_uses_httpx_client(self):
+        """get_access_token function body should use httpx.Client."""
+        source = (Path(__file__).resolve().parent.parent / "app" / "sign_jwt.py").read_text()
+        assert "httpx.Client()" in source, "get_access_token should use httpx.Client()"
+        assert "requests.request" not in source, "get_access_token should not use requests.request"
 
 
 @pytest.mark.unit

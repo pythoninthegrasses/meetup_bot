@@ -2,8 +2,8 @@
 
 import arrow
 import atexit
+import httpx
 import os
-import requests
 import sys
 import time
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -51,11 +51,13 @@ def get_token():
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
 
     try:
-        res = requests.request("POST", url, headers=headers, data=payload)
+        with httpx.Client() as client:
+            res = client.post(url, headers=headers, content=payload)
+            res.raise_for_status()
         print(f"{Fore.GREEN}{info:<10}{Fore.RESET}[{loc_time.format('YYYY-MM-DD HH:mm:ss')}] Generating a new token")
         raw = res.json()
         return raw['access_token']
-    except requests.exceptions.RequestException as e:
+    except httpx.HTTPError as e:
         print(f"{Fore.RED}{error:<10}{Fore.RESET}[{loc_time.format('YYYY-MM-DD HH:mm:ss')}] {e}")
         sys.exit(1)
 
@@ -75,10 +77,12 @@ def post_to_slack():
     headers = {'Authorization': f'Bearer {access_token}', 'accept': 'application/json'}
 
     try:
-        res = requests.request("POST", url, headers=headers, data=payload)
+        with httpx.Client() as client:
+            res = client.post(url, headers=headers, content=payload)
+            res.raise_for_status()
         print(f"{Fore.GREEN}{info:<10}{Fore.RESET}[{loc_time.format('YYYY-MM-DD HH:mm:ss')}] Posting to Slack")
         return res.json()
-    except requests.exceptions.RequestException as e:
+    except httpx.HTTPError as e:
         print(f"{Fore.RED}{error:<10}{Fore.RESET}[{loc_time.format('YYYY-MM-DD HH:mm:ss')}] {e}")
         sys.exit(1)
 

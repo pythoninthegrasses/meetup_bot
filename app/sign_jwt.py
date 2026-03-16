@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 import base64
+import httpx
 import jwt
 import pathlib
-import requests
 import sys
 import time
 from colorama import Fore
@@ -116,14 +116,15 @@ def get_access_token(token):
     payload = urlencode(payload)
 
     try:
-        response = requests.request("POST", TOKEN_URL, headers=request_headers, data=payload)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.HTTPError as e:
+        with httpx.Client() as client:
+            response = client.post(TOKEN_URL, headers=request_headers, content=payload)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPStatusError as e:
         print(f"{Fore.RED}{error:<10}{Fore.RESET}HTTP Error: {e}")
-        print(f"Response: {response.text}")
+        print(f"Response: {e.response.text}")
         return None
-    except requests.exceptions.RequestException as e:
+    except httpx.HTTPError as e:
         print(f"{Fore.RED}{error:<10}{Fore.RESET}Request failed: {e}")
         return None
 
