@@ -4,7 +4,6 @@ import os
 import pandas as pd
 import pytest
 import warnings
-from pathlib import Path
 from capture_groups import (
     TECHLAHOMA_PRO_NETWORK_ID,
     filter_groups,
@@ -26,6 +25,7 @@ from meetup_query import (
     sort_csv,
     sort_json,
 )
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 # ── Fixtures ────────────────────────────────────────────────────────

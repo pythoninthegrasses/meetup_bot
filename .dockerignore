@@ -29,7 +29,6 @@
 **/django
 **/docker-compose*
 **/Dockerfile*
-**/heroku.yml
 **/htmlcov
 **/img
 **/jsonwebtoken_test
