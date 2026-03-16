@@ -30,3 +30,7 @@ environments:
 apps:
   - name: web
     source: github
+    volumes:
+      - source: db_data
+        target: /data
+        type: volume
