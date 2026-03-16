@@ -100,10 +100,13 @@ FastAPI app
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize database and create default user on startup."""
     init_db()
-    with db_session:
-        if not UserInfo.exists(username=DB_USER):
-            hashed_password = get_password_hash(DB_PASS)
-            UserInfo(username=DB_USER, hashed_password=hashed_password)
+    try:
+        with db_session:
+            if not UserInfo.exists(username=DB_USER):
+                hashed_password = get_password_hash(DB_PASS)
+                UserInfo(username=DB_USER, hashed_password=hashed_password)
+    except Exception:
+        pass
     yield
 
 
