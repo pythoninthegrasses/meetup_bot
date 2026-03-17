@@ -1,10 +1,10 @@
 ---
 id: TASK-014
 title: Decouple export from formatted response
-status: In Progress
+status: To Do
 assignee: []
 created_date: '2026-02-27 00:54'
-updated_date: '2026-02-27 01:14'
+updated_date: '2026-03-17 02:09'
 labels:
   - refactor
 dependencies: []
@@ -13,7 +13,7 @@ references:
   - app/meetup_query.py
   - app/slackbot.py
 priority: medium
-ordinal: 3000
+ordinal: 7000
 ---
 
 ## Description

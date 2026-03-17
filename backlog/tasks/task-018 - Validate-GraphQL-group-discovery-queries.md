@@ -4,6 +4,7 @@ title: Validate GraphQL group discovery queries
 status: To Do
 assignee: []
 created_date: '2026-02-27 00:54'
+updated_date: '2026-03-17 02:09'
 labels:
   - qa
 dependencies: []
@@ -11,6 +12,7 @@ references:
   - app/meetup_queries.gql
   - app/meetup_query.py
 priority: low
+ordinal: 3000
 ---
 
 ## Description

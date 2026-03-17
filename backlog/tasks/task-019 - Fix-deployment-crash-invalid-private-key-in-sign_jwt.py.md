@@ -1,9 +1,10 @@
 ---
 id: TASK-019
 title: 'Fix deployment crash: invalid private key in sign_jwt.py'
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-03-16 23:02'
+updated_date: '2026-03-17 02:09'
 labels:
   - deployment
   - dokploy
@@ -14,6 +15,7 @@ references:
   - 'app/meetup_query.py:16'
   - CLAUDE.local.md
 priority: high
+ordinal: 1000
 ---
 
 ## Description

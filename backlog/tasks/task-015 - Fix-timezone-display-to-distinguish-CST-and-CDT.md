@@ -4,12 +4,14 @@ title: Fix timezone display to distinguish CST and CDT
 status: To Do
 assignee: []
 created_date: '2026-02-27 00:54'
+updated_date: '2026-03-17 02:09'
 labels:
   - bug
 dependencies: []
 references:
   - app/main.py
 priority: low
+ordinal: 2000
 ---
 
 ## Description

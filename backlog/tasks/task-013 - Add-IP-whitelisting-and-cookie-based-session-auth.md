@@ -1,17 +1,17 @@
 ---
 id: TASK-013
 title: Add IP whitelisting and cookie-based session auth
-status: In Progress
+status: To Do
 assignee: []
 created_date: '2026-02-27 00:54'
-updated_date: '2026-02-27 01:14'
+updated_date: '2026-03-17 02:09'
 labels:
   - auth
 dependencies: []
 references:
   - app/main.py
 priority: medium
-ordinal: 2000
+ordinal: 6000
 ---
 
 ## Description

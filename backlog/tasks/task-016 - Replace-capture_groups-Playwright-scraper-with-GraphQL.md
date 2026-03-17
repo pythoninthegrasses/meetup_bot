@@ -1,10 +1,10 @@
 ---
 id: TASK-016
 title: Replace capture_groups Playwright scraper with GraphQL
-status: In Progress
+status: To Do
 assignee: []
 created_date: '2026-02-27 00:54'
-updated_date: '2026-02-27 01:14'
+updated_date: '2026-03-17 02:09'
 labels:
   - refactor
 dependencies: []
@@ -12,7 +12,7 @@ references:
   - app/capture_groups.py
   - app/meetup_queries.gql
 priority: medium
-ordinal: 1000
+ordinal: 5000
 ---
 
 ## Description
