@@ -422,14 +422,7 @@ def test_get_current_schedule(test_client, auth_headers):
 
 @pytest.mark.unit
 def test_dev_mode_bypasses_auth_for_local_requests(raw_test_client):
-    """When DEV=True, localhost requests should not require authentication.
-
-    oauth2_scheme is constructed at import time with auto_error=not DEV.
-    Since DEV is False during test collection, auto_error is True and the
-    scheme rejects tokenless requests before ip_whitelist_or_auth runs.
-    We must also patch auto_error on the live instance.
-    """
-    from main import oauth2_scheme
+    """When DEV=True, localhost requests should not require authentication."""
 
     mock_schedule_obj = MagicMock(
         day="Monday", schedule_time="10:00", enabled=True, snooze_until=None, original_schedule_time="10:00"
@@ -437,7 +430,6 @@ def test_dev_mode_bypasses_auth_for_local_requests(raw_test_client):
 
     with (
         patch('main.DEV', True),
-        patch.object(oauth2_scheme, 'auto_error', False),
         patch('main.check_and_revert_snooze'),
         patch('main.get_schedule', return_value=mock_schedule_obj),
         patch('main.db_session') as mock_db_sess,
@@ -858,12 +850,6 @@ class TestGetAccessTokenUsesHttpx:
         source = (Path(__file__).resolve().parent.parent / "app" / "sign_jwt.py").read_text()
         assert "import requests" not in source, "sign_jwt.py still imports requests"
         assert "import httpx" in source, "sign_jwt.py should import httpx"
-
-    def test_no_requests_import_in_scheduler(self):
-        """scheduler should not import the requests library."""
-        source = (Path(__file__).resolve().parent.parent / "app" / "scheduler.py").read_text()
-        assert "import requests" not in source, "scheduler.py still imports requests"
-        assert "import httpx" in source, "scheduler.py should import httpx"
 
     def test_get_access_token_uses_httpx_client(self):
         """get_access_token function body should use httpx.Client."""

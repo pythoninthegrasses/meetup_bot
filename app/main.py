@@ -168,7 +168,7 @@ class UserInDB(User):
     hashed_password: str
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=not DEV)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 
 def verify_password(plain_password, hashed_password):
