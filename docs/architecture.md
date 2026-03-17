@@ -58,7 +58,7 @@ Sends two categories of GraphQL queries to `https://api.meetup.com/gql-ext`:
 Responses are filtered by city (default: Oklahoma City), excluded keywords
 (e.g., "Tulsa", "Bitcoin"), and a configurable time window (`DAYS`, default 7).
 Results are deduplicated, sorted by date, and exported to a JSON file. HTTP responses
-are cached with `requests-cache` to reduce API calls.
+are cached with `hishel` (SQLite-backed) to reduce API calls.
 
 ### slackbot.py -- Slack Message Delivery
 
@@ -96,7 +96,7 @@ The central web server that wires everything together.
 
 **Authentication:** Dual-layer. API routes require OAuth2 Bearer tokens (HS256 JWT
 via `python-jose`). Requests from whitelisted IPs (localhost, 127.0.0.1) bypass
-auth. A `UserInfo` PonyORM entity stores bcrypt-hashed credentials in PostgreSQL.
+auth. A `UserInfo` PonyORM entity stores bcrypt-hashed credentials in SQLite.
 
 ### scheduler.py -- Background Job Runner
 
@@ -192,7 +192,7 @@ See `.env.example` for the full list. Key groups:
 | ------- | ---- |
 | FastAPI + uvicorn + gunicorn | Web framework and server |
 | PonyORM | ORM (SQLite provider) |
-| requests + requests-cache | HTTP client with caching |
+| httpx + hishel | HTTP client with caching |
 | slack-sdk | Slack Web API client |
 | PyJWT + cryptography | RS256 JWT signing for Meetup auth |
 | python-jose | HS256 JWT for application auth |
