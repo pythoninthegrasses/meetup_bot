@@ -10,6 +10,10 @@ app_path = root_path / "app"
 # Use a temp directory for SQLite during tests
 os.environ.setdefault("DB_PATH", os.path.join(tempfile.mkdtemp(), "test_meetup_bot.db"))
 
+# API auth credentials required by main.py
+os.environ.setdefault("DB_USER", "testuser")
+os.environ.setdefault("DB_PASS", "testpass")
+
 groups_csv_path = app_path / "groups.csv"
 
 

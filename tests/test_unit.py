@@ -393,13 +393,22 @@ def test_get_current_schedule(test_client, auth_headers):
 
 @pytest.mark.unit
 def test_dev_mode_bypasses_auth_for_local_requests(raw_test_client):
-    """When DEV=True, localhost requests should not require authentication."""
+    """When DEV=True, localhost requests should not require authentication.
+
+    oauth2_scheme is constructed at import time with auto_error=not DEV.
+    Since DEV is False during test collection, auto_error is True and the
+    scheme rejects tokenless requests before ip_whitelist_or_auth runs.
+    We must also patch auto_error on the live instance.
+    """
+    from main import oauth2_scheme
+
     mock_schedule_obj = MagicMock(
         day="Monday", schedule_time="10:00", enabled=True, snooze_until=None, original_schedule_time="10:00"
     )
 
     with (
         patch('main.DEV', True),
+        patch.object(oauth2_scheme, 'auto_error', False),
         patch('main.check_and_revert_snooze'),
         patch('main.get_schedule', return_value=mock_schedule_obj),
         patch('main.db_session') as mock_db_sess,
@@ -472,6 +481,30 @@ class TestPasswordHashing:
             source = inspect.getsource(sys.modules[mod_name])
             assert "from passlib" not in source, "main.py still imports passlib"
             assert "import passlib" not in source, "main.py still imports passlib"
+
+
+@pytest.mark.unit
+class TestDbCredentialsRequired:
+    """DB_USER and DB_PASS are required and exit with a clear message when missing."""
+
+    def test_missing_db_creds_produces_actionable_error(self):
+        """Error handler for missing DB_USER/DB_PASS should mention both var names."""
+        import inspect
+        import sys
+
+        source = inspect.getsource(sys.modules["main"])
+        assert "DB_USER" in source and "DB_PASS" in source
+        assert "sys.exit" in source, "Missing DB creds should call sys.exit, not raise UndefinedValueError"
+
+    def test_error_message_clarifies_purpose(self):
+        """Error message should explain these are for API auth, not DB connectivity."""
+        import inspect
+        import sys
+
+        source = inspect.getsource(sys.modules["main"])
+        assert "authentication" in source.lower() or "API auth" in source, (
+            "Error message should clarify DB_USER/DB_PASS are for API authentication"
+        )
 
 
 @pytest.mark.unit

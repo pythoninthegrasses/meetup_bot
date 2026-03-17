@@ -67,8 +67,17 @@ PORT = config("PORT", default=3000, cast=int)
 SECRET_KEY = config("SECRET_KEY")
 ALGORITHM = config("ALGORITHM", default="HS256")
 TOKEN_EXPIRE = config("TOKEN_EXPIRE", default=30, cast=int)
-DB_USER = config("DB_USER")
-DB_PASS = config("DB_PASS").strip('"')
+
+try:
+    DB_USER = config("DB_USER")
+    DB_PASS = config("DB_PASS").strip('"')
+except Exception:
+    print(
+        f"{Fore.RED}FATAL:{Fore.RESET} DB_USER and DB_PASS environment variables are required. "
+        "These credentials are used for API authentication, not database connectivity. "
+        "Set them in .env or as environment variables."
+    )
+    sys.exit(1)
 
 """
 IP Address Whitelisting

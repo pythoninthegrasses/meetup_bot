@@ -91,7 +91,7 @@ WORKDIR /app
 COPY --chown=${USER_NAME} ./app .
 COPY --from=builder --chown=${USER_NAME} "$VENV" "$VENV"
 
-ARG PORT=${PORT:-3100}
+ARG PORT=${PORT:-3000}
 EXPOSE $PORT
 
 CMD ["/bin/sh", "startup.sh"]
