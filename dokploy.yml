@@ -39,7 +39,7 @@ apps:
         cronExpression: "0 9 * * 1-5"
         command: >-
           python -c "import httpx;
-          httpx.post('http://localhost:3000/slack',
+          httpx.post('http://localhost:3000/api/slack',
           params={'channel_name': 'okc-metro'})"
         shellType: bash
         timezone: America/Chicago
