@@ -16,10 +16,17 @@ Always use Context7 MCP when I need library/API documentation, code generation, 
 
 ### Libraries
 
+- astral-sh/ruff
+- astral-sh/uv
+- dokploy/website
 - fastapi/fastapi
-- roborev-dev/roborev
+- hypothesisworks/hypothesis
+- jdx/mise
+- max-sixty/worktrunk
+- mrlesk/backlog.md
 - websites/deno
-- websites/taskfile_dev_usage
+- websites/orbstack_dev
+- websites/taskfile_dev
 
 ## Build, Lint, and Test Commands
 
