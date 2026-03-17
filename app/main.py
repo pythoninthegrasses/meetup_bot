@@ -465,7 +465,7 @@ def post_slack(
 
     check_auth(auth)
 
-    get_events(location=location, exclusions=exclusions)
+    get_events(auth=auth, location=location, exclusions=exclusions)
 
     # open json file and convert to list of strings
     msg = fmt_json(json_fn)
