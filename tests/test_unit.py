@@ -362,6 +362,35 @@ def test_post_slack(test_client, auth_headers):
 
 
 @pytest.mark.unit
+def test_post_slack_passes_auth_to_get_events(test_client, auth_headers):
+    """Regression: post_slack must forward auth to get_events.
+
+    Without this, get_events receives a raw Depends() descriptor
+    and check_auth raises 401.
+    """
+    mock_message = ["Test message"]
+
+    with (
+        patch('main.get_events') as mock_get_events,
+        patch('main.fmt_json', return_value=mock_message),
+        patch('main.send_message'),
+        patch('main.chan_dict', {"test-channel": "C12345"}),
+    ):
+        response = test_client.post(
+            "/api/slack",
+            headers=auth_headers,
+            params={"location": "Oklahoma City", "exclusions": "Tulsa", "channel_name": "test-channel"},
+        )
+        assert response.status_code == 200
+        # Verify auth was forwarded (not left as default Depends descriptor)
+        mock_get_events.assert_called_once()
+        call_kwargs = mock_get_events.call_args
+        auth_arg = call_kwargs.kwargs.get("auth")
+        assert auth_arg is not None, "auth must be passed to get_events"
+        assert isinstance(auth_arg, UserInDB), f"auth should be a User, got {type(auth_arg)}"
+
+
+@pytest.mark.unit
 def test_snooze_slack_post(test_client, auth_headers):
     # snooze_slack_post endpoint references undefined `current_user` variable (app bug).
     # Patch it as a module-level variable to avoid NameError.
