@@ -4,7 +4,12 @@
   "apps": {
     "web": {
       "applicationId": "BzZqb7L6SIzc90M2rO1rV",
-      "appName": "app-program-primary-capacitor-4vxwo4"
+      "appName": "app-program-primary-capacitor-4vxwo4",
+      "schedules": {
+        "weekday-run": {
+          "scheduleId": "u-vza4ZpNliPR_0yJQLqP"
+        }
+      }
     }
   }
 }
