@@ -98,18 +98,6 @@ The central web server that wires everything together.
 via `python-jose`). Requests from whitelisted IPs (localhost, 127.0.0.1) bypass
 auth. A `UserInfo` PonyORM entity stores bcrypt-hashed credentials in SQLite.
 
-### scheduler.py -- Background Job Runner
-
-Uses APScheduler (`BackgroundScheduler`) to periodically call the FastAPI endpoints
-internally. Runs token refresh every 30 minutes and the Slack posting job on a cron
-schedule. Hosts its own uvicorn instance on port 3001.
-
-### scheduler.sh -- Shell-based Scheduler
-
-A POSIX shell alternative to `scheduler.py`. Authenticates against the FastAPI
-`/token` endpoint with curl, then hits `/api/slack` or `/api/events`. Used for
-cron-based deployments.
-
 ### capture_groups.py -- Group Discovery (GraphQL)
 
 Queries the Meetup GraphQL API (`keywordSearch`) to discover technology groups in
@@ -158,6 +146,13 @@ Multi-stage build (`Dockerfile`):
 
 The `docker.yml` workflow builds multi-arch images (amd64, arm64) on pushes to
 `main` or version tags and publishes to `ghcr.io`.
+
+### Dokploy Cron Schedule
+
+The `dokploy.yml` defines a `weekday-run` schedule that posts to Slack weekdays at
+9 AM Central. The cron job runs inside the application container and hits the
+`/api/slack` endpoint via `httpx` on `localhost:3000`, targeting the `okc-metro`
+channel.
 
 ### Docker Compose
 
