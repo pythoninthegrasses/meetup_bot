@@ -223,8 +223,8 @@ async def get_current_user(token: str | None = Depends(oauth2_scheme)):
         if username is None:
             raise credentials_exception
         token_data = TokenData(username=username)
-    except JWTError:
-        raise credentials_exception
+    except JWTError as err:
+        raise credentials_exception from err
     user = get_user(username=token_data.username)
     if user is None:
         raise credentials_exception
@@ -343,7 +343,7 @@ def generate_token(current_user: User = Depends(get_current_active_user)):
         refresh_token = tokens["refresh_token"]
     except KeyError as e:
         print(f"{Fore.RED}{error:<10}{Fore.RESET}KeyError: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise HTTPException(status_code=500, detail="Internal Server Error") from e
 
     return access_token, refresh_token
 
@@ -499,7 +499,7 @@ def snooze_slack_post(
         snooze_schedule(duration)
         return {"message": f"Slack post snoozed for {duration}"}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @api_router.get("/schedule")
