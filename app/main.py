@@ -27,7 +27,6 @@ from pydantic import BaseModel
 from schedule import check_and_revert_snooze, get_current_schedule_time, get_schedule, snooze_schedule
 from sign_jwt import main as gen_token
 from slackbot import *
-from typing import List, Union
 
 # verbose icecream
 ic.configureOutput(includeContext=True)
