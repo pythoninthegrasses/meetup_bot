@@ -40,23 +40,27 @@ REDIRECT_URI = config('REDIRECT_URI')
 JWT_LIFE_SPAN = config('JWT_LIFE_SPAN', default=120, cast=int)
 
 # load private key
-if isinstance(priv_key, pathlib.PosixPath) and priv_key.exists():
-    with open(priv_key, 'rb') as f:
-        private_key = serialization.load_pem_private_key(data=f.read(), password=None, backend=default_backend())
-else:
-    # decode base64
-    private_key = base64.b64decode(priv_key)
-    # load private key from env
-    private_key = serialization.load_pem_private_key(data=private_key, password=None, backend=default_backend())
+try:
+    if isinstance(priv_key, pathlib.PosixPath) and priv_key.exists():
+        with open(priv_key, 'rb') as f:
+            private_key = serialization.load_pem_private_key(data=f.read(), password=None, backend=default_backend())
+    else:
+        private_key = base64.b64decode(priv_key)
+        private_key = serialization.load_pem_private_key(data=private_key, password=None, backend=default_backend())
+except Exception as e:
+    print(f"{Fore.RED}{error:<10}{Fore.RESET}Failed to load private key: {e}")
+    private_key = None
 
-if isinstance(pub_key, pathlib.PosixPath) and pub_key.exists():
-    with open(pub_key, 'rb') as f:
-        public_key = serialization.load_pem_public_key(data=f.read(), backend=default_backend())
-else:
-    # decode base64
-    public_key = base64.b64decode(pub_key)
-    # load public key
-    public_key = serialization.load_pem_public_key(data=public_key, backend=default_backend())
+try:
+    if isinstance(pub_key, pathlib.PosixPath) and pub_key.exists():
+        with open(pub_key, 'rb') as f:
+            public_key = serialization.load_pem_public_key(data=f.read(), backend=default_backend())
+    else:
+        public_key = base64.b64decode(pub_key)
+        public_key = serialization.load_pem_public_key(data=public_key, backend=default_backend())
+except Exception as e:
+    print(f"{Fore.RED}{error:<10}{Fore.RESET}Failed to load public key: {e}")
+    public_key = None
 
 headers = {"alg": 'RS256', "typ": 'JWT', "Accept": 'application/json', "Content-Type": 'application/x-www-form-urlencoded'}
 
@@ -74,6 +78,10 @@ def gen_payload_data():
 def sign_token():
     """Generate signed JWT"""
 
+    if private_key is None:
+        print(f"{Fore.RED}{error:<10}{Fore.RESET}Cannot sign token: private key not loaded")
+        return None
+
     # Define headers exactly as specified in docs
     jwt_headers = {"kid": SIGNING_KEY_ID, "typ": "JWT", "alg": "RS256"}
 
@@ -86,6 +94,10 @@ def sign_token():
 
 def verify_token(token):
     """Verify signed JWT against public key"""
+
+    if public_key is None:
+        print(f"{Fore.RED}{error:<10}{Fore.RESET}Cannot verify token: public key not loaded")
+        return False
 
     try:
         jwt.decode(jwt=token, key=public_key, issuer=CLIENT_ID, audience="api.meetup.com", verify=True, algorithms=['RS256'])

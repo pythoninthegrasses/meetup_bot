@@ -859,6 +859,50 @@ class TestGetAccessTokenUsesHttpx:
 
 
 @pytest.mark.unit
+class TestSignJwtGracefulKeyFailure:
+    """sign_jwt must not crash at import time with invalid keys."""
+
+    def test_sign_token_returns_none_when_private_key_unavailable(self):
+        """sign_token returns None when private key failed to load."""
+        import sign_jwt
+
+        original = sign_jwt.private_key
+        try:
+            sign_jwt.private_key = None
+            result = sign_jwt.sign_token()
+            assert result is None
+        finally:
+            sign_jwt.private_key = original
+
+    def test_verify_token_returns_false_when_public_key_unavailable(self):
+        """verify_token returns False when public key failed to load."""
+        import sign_jwt
+
+        original = sign_jwt.public_key
+        try:
+            sign_jwt.public_key = None
+            result = sign_jwt.verify_token("fake.token.here")
+            assert result is False
+        finally:
+            sign_jwt.public_key = original
+
+    def test_main_returns_none_when_keys_unavailable(self):
+        """main() returns None when keys failed to load."""
+        import sign_jwt
+
+        orig_priv = sign_jwt.private_key
+        orig_pub = sign_jwt.public_key
+        try:
+            sign_jwt.private_key = None
+            sign_jwt.public_key = None
+            result = sign_jwt.main()
+            assert result is None
+        finally:
+            sign_jwt.private_key = orig_priv
+            sign_jwt.public_key = orig_pub
+
+
+@pytest.mark.unit
 class TestBuildBatchedGroupQuery:
     def test_single_group(self):
         query = build_batched_group_query(["test-group"])
