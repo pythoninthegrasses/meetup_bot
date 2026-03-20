@@ -124,7 +124,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 # main web app
-app = FastAPI(title="meetup_bot API", openapi_url="/meetup_bot.json", lifespan=lifespan)
+app = FastAPI(
+    title="meetup_bot API",
+    openapi_url="/meetup_bot.json",
+    lifespan=lifespan,
+    swagger_ui_parameters={"persistAuthorization": True},
+)
 
 # add `/api` route in front of all other endpoints
 api_router = APIRouter(prefix="/api")
