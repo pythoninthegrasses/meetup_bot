@@ -1,5 +1,11 @@
 {
   "mcpServers": {
+    "backlog": {
+      "command": "backlog",
+      "args": [
+        "mcp", "start"
+      ]
+    },
     "context7": {
       "command": "npx",
       "args": [
