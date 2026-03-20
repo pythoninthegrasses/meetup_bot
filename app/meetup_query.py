@@ -244,11 +244,7 @@ def send_request(token, query, vars) -> str:
     headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json; charset=utf-8'}
 
     try:
-        # Parse vars string to JSON object if it's a string
-        if isinstance(vars, str):
-            variables = json.loads(vars)
-        else:
-            variables = vars
+        variables = json.loads(vars) if isinstance(vars, str) else vars
 
         r = http_client.post(endpoint, json={'query': query, 'variables': variables}, headers=headers)
         print(f"{Fore.GREEN}{info:<10}{Fore.RESET}Response HTTP Response Body: {r.status_code}")
@@ -436,10 +432,7 @@ def export_to_file(response, type: str = 'json', exclusions: str = '') -> None:
     """
     Export to CSV or JSON
     """
-    if exclusions != '':
-        df = format_response(response, exclusions=exclusions)
-    else:
-        df = format_response(response)
+    df = format_response(response, exclusions=exclusions) if exclusions != '' else format_response(response)
 
     # If DataFrame is empty, return early
     if df.empty:
