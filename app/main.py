@@ -14,7 +14,7 @@ from db import APP_DIR, UserInfo, init_db
 from decouple import config
 from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.templating import Jinja2Templates
 from icecream import ic
@@ -86,12 +86,17 @@ IP Address Whitelisting
 DISABLE_IP_WHITELIST = config("DISABLE_IP_WHITELIST", default=False, cast=bool)
 
 
+def _parse_public_ips() -> list[str]:
+    raw = config("PUBLIC_IPS", default="")
+    return [ip.strip() for ip in raw.split(",") if ip.strip()]
+
+
 class IPConfig(BaseModel):
     whitelist: list[str] = ["localhost", "127.0.0.1"]
     public_ips: list[str] = []
 
 
-ip_config = IPConfig()
+ip_config = IPConfig(public_ips=_parse_public_ips())
 
 
 def is_ip_allowed(request: Request):
@@ -208,8 +213,10 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
-async def get_current_user(token: str | None = Depends(oauth2_scheme)):
-    """Get current user"""
+async def get_current_user(request: Request, token: str | None = Depends(oauth2_scheme)):
+    """Get current user from Bearer token or session_token cookie."""
+    if token is None:
+        token = request.cookies.get("session_token")
     if token is None:
         return None
     credentials_exception = HTTPException(
@@ -280,7 +287,16 @@ async def login_for_oauth_token(form_data: OAuth2PasswordRequestForm = Depends()
     oauth_token_expires = timedelta(minutes=TOKEN_EXPIRE)
     oauth_token = create_access_token(data={"sub": user.username}, expires_delta=oauth_token_expires)
 
-    return {"access_token": oauth_token, "token_type": "bearer"}
+    response = JSONResponse(content={"access_token": oauth_token, "token_type": "bearer"})
+    response.set_cookie(
+        key="session_token",
+        value=oauth_token,
+        httponly=True,
+        secure=not DEV,
+        samesite="lax",
+        max_age=TOKEN_EXPIRE * 60,
+    )
+    return response
 
 
 """
@@ -318,7 +334,18 @@ def index(request: Request):
 def login(request: Request, username: str = Form(...), password: str = Form(...)):
     """Redirect to "/docs" from index page if user successfully logs in with HTML form"""
     if load_user(username) and verify_password(password, load_user(username).hashed_password):
-        return RedirectResponse(url="/docs", status_code=303)
+        oauth_token_expires = timedelta(minutes=TOKEN_EXPIRE)
+        oauth_token = create_access_token(data={"sub": username}, expires_delta=oauth_token_expires)
+        response = RedirectResponse(url="/docs", status_code=303)
+        response.set_cookie(
+            key="session_token",
+            value=oauth_token,
+            httponly=True,
+            secure=not DEV,
+            samesite="lax",
+            max_age=TOKEN_EXPIRE * 60,
+        )
+        return response
 
 
 @api_router.get("/token")

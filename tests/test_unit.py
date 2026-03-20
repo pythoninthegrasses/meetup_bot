@@ -13,7 +13,7 @@ from capture_groups import (
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from jose import jwt
-from main import UserInDB, app, get_current_user
+from main import IPConfig, UserInDB, app, get_current_user, is_ip_allowed
 from meetup_query import (
     build_batched_group_query,
     export_to_file,
@@ -464,6 +464,141 @@ def test_invalid_token(raw_test_client):
         response = raw_test_client.get("/api/events", headers=headers)
         assert response.status_code == 401
         assert "detail" in response.json()
+
+
+# ── IP whitelisting tests ──────────────────────────────────────────
+
+
+@pytest.mark.unit
+class TestIPConfigPublicIps:
+    """IPConfig.public_ips should be configurable via PUBLIC_IPS env var."""
+
+    def test_default_public_ips_empty(self):
+        cfg = IPConfig()
+        assert cfg.public_ips == []
+
+    def test_public_ips_from_env_single(self):
+        with patch.dict(os.environ, {"PUBLIC_IPS": "10.0.0.1"}):
+            from main import _parse_public_ips
+
+            ips = _parse_public_ips()
+            assert ips == ["10.0.0.1"]
+
+    def test_public_ips_from_env_multiple(self):
+        with patch.dict(os.environ, {"PUBLIC_IPS": "10.0.0.1,192.168.1.1,172.16.0.1"}):
+            from main import _parse_public_ips
+
+            ips = _parse_public_ips()
+            assert ips == ["10.0.0.1", "192.168.1.1", "172.16.0.1"]
+
+    def test_public_ips_from_env_empty(self):
+        with patch.dict(os.environ, {"PUBLIC_IPS": ""}):
+            from main import _parse_public_ips
+
+            ips = _parse_public_ips()
+            assert ips == []
+
+    def test_public_ips_strips_whitespace(self):
+        with patch.dict(os.environ, {"PUBLIC_IPS": " 10.0.0.1 , 192.168.1.1 "}):
+            from main import _parse_public_ips
+
+            ips = _parse_public_ips()
+            assert ips == ["10.0.0.1", "192.168.1.1"]
+
+
+@pytest.mark.unit
+class TestIsIpAllowedWithPublicIps:
+    """is_ip_allowed should match against both whitelist and public_ips."""
+
+    def test_allowed_via_public_ips(self):
+        mock_request = MagicMock()
+        mock_request.client.host = "203.0.113.50"
+        with patch("main.ip_config", IPConfig(public_ips=["203.0.113.50"])):
+            assert is_ip_allowed(mock_request) is True
+
+    def test_denied_when_not_in_either_list(self):
+        mock_request = MagicMock()
+        mock_request.client.host = "203.0.113.99"
+        with patch("main.ip_config", IPConfig(public_ips=["203.0.113.50"])):
+            assert is_ip_allowed(mock_request) is False
+
+    def test_allowed_via_whitelist(self):
+        mock_request = MagicMock()
+        mock_request.client.host = "127.0.0.1"
+        with patch("main.ip_config", IPConfig()):
+            assert is_ip_allowed(mock_request) is True
+
+
+# ── Cookie auth tests ─────────────────────────────────────────────
+
+
+@pytest.mark.unit
+class TestCookieAuth:
+    """get_current_user should fall back to session_token cookie when no Bearer token."""
+
+    def test_cookie_auth_returns_user(self, raw_test_client):
+        from main import ALGORITHM, SECRET_KEY, get_password_hash
+
+        token = jwt.encode({"sub": "testuser"}, SECRET_KEY, algorithm=ALGORITHM)
+        with (
+            patch("main.DEV", False),
+            patch("main.is_ip_allowed", return_value=False),
+            patch(
+                "main.get_user",
+                return_value=UserInDB(
+                    username="testuser",
+                    email="test@example.com",
+                    hashed_password=get_password_hash("pass"),
+                ),
+            ),
+        ):
+            raw_test_client.cookies.set("session_token", token)
+            response = raw_test_client.get("/api/events")
+            raw_test_client.cookies.clear()
+            assert response.status_code == 200
+
+    def test_bearer_takes_precedence_over_cookie(self, raw_test_client):
+        from main import ALGORITHM, SECRET_KEY, get_password_hash
+
+        good_token = jwt.encode({"sub": "testuser"}, SECRET_KEY, algorithm=ALGORITHM)
+        bad_cookie = "invalid_cookie_token"
+        with (
+            patch("main.DEV", False),
+            patch("main.is_ip_allowed", return_value=False),
+            patch(
+                "main.get_user",
+                return_value=UserInDB(
+                    username="testuser",
+                    email="test@example.com",
+                    hashed_password=get_password_hash("pass"),
+                ),
+            ),
+        ):
+            raw_test_client.cookies.set("session_token", bad_cookie)
+            response = raw_test_client.get(
+                "/api/events",
+                headers={"Authorization": f"Bearer {good_token}"},
+            )
+            raw_test_client.cookies.clear()
+            assert response.status_code == 200
+
+    def test_invalid_cookie_returns_401(self, raw_test_client):
+        with (
+            patch("main.DEV", False),
+            patch("main.is_ip_allowed", return_value=False),
+        ):
+            raw_test_client.cookies.set("session_token", "invalid")
+            response = raw_test_client.get("/api/events")
+            raw_test_client.cookies.clear()
+            assert response.status_code == 401
+
+    def test_no_token_no_cookie_returns_401(self, raw_test_client):
+        with (
+            patch("main.DEV", False),
+            patch("main.is_ip_allowed", return_value=False),
+        ):
+            response = raw_test_client.get("/api/events")
+            assert response.status_code == 401
 
 
 # ── Deprecation / bcrypt tests ──────────────────────────────────────
