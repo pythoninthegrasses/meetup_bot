@@ -70,24 +70,20 @@ else:
 client = WebClient(token=BOT_USER_TOKEN)
 
 
+def fmt_events(events: list[dict]) -> list[str]:
+    """Format a list of event dicts into Slack message strings."""
+    if not events:
+        return []
+
+    df = pd.DataFrame(events)
+    df['message'] = df.apply(lambda x: f'• {x["date"]} *{x["name"]}* <{x["eventUrl"]}|{x["title"]}> ', axis=1)
+    return df['message'].tolist()
+
+
 def fmt_json(filename):
     # read json file
     data = json.load(open(filename))
-
-    # create dataframe
-    df = pd.DataFrame(data)
-
-    # handle empty dataframe case
-    if df.empty:
-        return []
-
-    # add column: 'message' with date, name, title, eventUrl
-    df['message'] = df.apply(lambda x: f'• {x["date"]} *{x["name"]}* <{x["eventUrl"]}|{x["title"]}> ', axis=1)
-
-    # convert message column to list of strings (avoids alignment shenanigans)
-    msg = df['message'].tolist()
-
-    return msg
+    return fmt_events(data)
 
 
 def send_message(message, channel_id):

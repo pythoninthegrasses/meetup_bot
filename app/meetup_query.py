@@ -428,11 +428,53 @@ def sort_json(filename) -> None:
         json.dump(data, f, indent=2)
 
 
-def export_to_file(response, type: str = 'json', exclusions: str = '') -> None:
+def prepare_events(df) -> list[dict]:
+    """Deduplicate, sort, filter past events, and format dates on a DataFrame. Returns list of dicts."""
+    if df.empty:
+        return []
+
+    df = df.drop_duplicates(subset='eventUrl').copy()
+
+    dates = df['date'].to_dict()
+    for key, value in dates.items():
+        if isinstance(value, pd.Timestamp):
+            dates[key] = value.strftime('%Y-%m-%dT%H:%M:%S')
+        elif isinstance(value, str):
+            try:
+                parsed = arrow.get(value, 'ddd M/D h:mm a')
+                if parsed.year == 1:
+                    parsed = parsed.replace(year=arrow.now(tz).year)
+                dates[key] = parsed.format('YYYY-MM-DDTHH:mm:ss')
+            except ParserError:
+                try:
+                    dates[key] = arrow.get(value).format('YYYY-MM-DDTHH:mm:ss')
+                except ParserError:
+                    print(f"{Fore.RED}{error:<10}{Fore.RESET}Unparseable date: {value!r}")
+                    dates[key] = None
+        else:
+            print(f"{Fore.YELLOW}{warning:<10}{Fore.RESET}Unexpected date type {type(value).__name__}: {value!r}")
+            dates[key] = None
+    df['date'] = pd.Series(dates)
+
+    df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%dT%H:%M:%S', errors='coerce')
+    df['date'] = df['date'].dt.tz_localize(None)
+    df['date'] = df['date'].apply(lambda x: x.replace(year=1970, month=1, day=1) if pd.isnull(x) else x)
+
+    df = df.sort_values(by=['date'])
+    df = df[df['date'] >= arrow.now(tz).format('YYYY-MM-DDTHH:mm:ss')]
+    df = df.reset_index(drop=True)
+
+    df['date'] = df['date'].apply(lambda x: arrow.get(x).format('ddd M/D h:mm a'))
+
+    return json.loads(df.to_json(orient='records', force_ascii=False))
+
+
+def export_to_file(response, type: str = 'json', exclusions: str = '', df=None) -> None:
     """
     Export to CSV or JSON
     """
-    df = format_response(response, exclusions=exclusions) if exclusions != '' else format_response(response)
+    if df is None:
+        df = format_response(response, exclusions=exclusions) if exclusions != '' else format_response(response)
 
     # If DataFrame is empty, return early
     if df.empty:

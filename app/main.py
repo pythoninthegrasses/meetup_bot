@@ -412,28 +412,24 @@ def get_events(
         exclusion_list = exclusion_list + exclusions
 
     response = send_request(access_token, query, vars)
-
-    export_to_file(response, format, exclusions=exclusion_list)
+    frames = [format_response(response, exclusions=exclusion_list)]
 
     # third-party query (batched)
     responses = send_batched_group_request(access_token, url_vars)
-    output = []
     for i, response in enumerate(responses):
-        if len(format_response(response, exclusions=exclusion_list)) > 0:
-            output.append(response)
+        df = format_response(response, exclusions=exclusion_list)
+        if len(df) > 0:
+            frames.append(df)
         else:
             print(f"{Fore.GREEN}{info:<10}{Fore.RESET}No upcoming events for {url_vars[i]} found")
-    for resp in output:
-        export_to_file(resp, format)
 
-    # cleanup output file
-    sort_json(json_fn)
+    combined = pd.concat(frames, ignore_index=True)
+    events = prepare_events(combined)
 
-    # check if file exists after sorting
-    if not os.path.exists(json_fn) or os.stat(json_fn).st_size == 0:
+    if not events:
         return {"message": "No events found", "events": []}
 
-    return pd.read_json(json_fn).to_dict('records')
+    return events
 
 
 @api_router.get("/check-schedule")
@@ -493,19 +489,18 @@ def post_slack(
 
     check_auth(auth)
 
-    get_events(auth=auth, location=location, exclusions=exclusions)
+    events = get_events(auth=auth, location=location, exclusions=exclusions)
 
-    # open json file and convert to list of strings
-    msg = fmt_json(json_fn)
+    # handle "no events found" response
+    if isinstance(events, dict):
+        events = events.get("events", [])
 
-    # if channel_name is not None, post to channel as one concatenated string
+    msg = fmt_events(events)
+
     if channel_name is not None:
-        # get channel id chan_dict key value pair
         channel_id = chan_dict[channel_name]
-        # post to single channel
         send_message("\n".join(msg), channel_id)
     else:
-        # post to all channels
         for name, id in channels.items():
             send_message("\n".join(msg), id)
 

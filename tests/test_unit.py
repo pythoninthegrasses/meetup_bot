@@ -20,12 +20,14 @@ from meetup_query import (
     format_response,
     http_client,
     main,
+    prepare_events,
     send_batched_group_request,
     send_request,
     sort_csv,
     sort_json,
 )
 from pathlib import Path
+from slackbot import fmt_events
 from unittest.mock import MagicMock, patch
 
 # ── Fixtures ────────────────────────────────────────────────────────
@@ -294,19 +296,15 @@ def test_get_events(test_client, auth_headers):
         }
     ]
 
+    mock_df = pd.DataFrame(columns=["name", "date", "title", "description", "city", "eventUrl"])
+
     with (
         patch('main.generate_token', return_value=("fake_access", "fake_refresh")),
         patch('main.send_request'),
         patch('main.send_batched_group_request', return_value=[]),
-        patch('main.export_to_file'),
-        patch('main.format_response', return_value=MagicMock(__len__=lambda s: 0)),
-        patch('main.sort_json'),
-        patch('main.os.path.exists', return_value=True),
-        patch('main.os.stat', return_value=MagicMock(st_size=100)),
-        patch('main.pd.read_json') as mock_read_json,
+        patch('main.format_response', return_value=mock_df),
+        patch('main.prepare_events', return_value=mock_events),
     ):
-        mock_read_json.return_value = MagicMock()
-        mock_read_json.return_value.to_dict.return_value = mock_events
         response = test_client.get(
             "/api/events", headers=auth_headers, params={"location": "Oklahoma City", "exclusions": "Tulsa"}
         )
@@ -346,10 +344,11 @@ def test_check_schedule(test_client, auth_headers):
 @pytest.mark.unit
 def test_post_slack(test_client, auth_headers):
     mock_message = ["Test message"]
+    mock_events = [{"name": "G", "date": "Thu 5/26 11:30 am", "title": "E", "eventUrl": "https://u"}]
 
     with (
-        patch('main.get_events'),
-        patch('main.fmt_json', return_value=mock_message),
+        patch('main.get_events', return_value=mock_events),
+        patch('main.fmt_events', return_value=mock_message),
         patch('main.send_message'),
         patch('main.chan_dict', {"test-channel": "C12345"}),
     ):
@@ -371,8 +370,8 @@ def test_post_slack_passes_auth_to_get_events(test_client, auth_headers):
     mock_message = ["Test message"]
 
     with (
-        patch('main.get_events') as mock_get_events,
-        patch('main.fmt_json', return_value=mock_message),
+        patch('main.get_events', return_value=[]) as mock_get_events,
+        patch('main.fmt_events', return_value=mock_message),
         patch('main.send_message'),
         patch('main.chan_dict', {"test-channel": "C12345"}),
     ):
@@ -953,6 +952,83 @@ def test_export_to_file(mock_response, tmp_path):
 
     assert len(exported_data) == 1
     assert exported_data[0]["title"] == "Test Event"
+
+
+@pytest.mark.unit
+def test_export_to_file_with_preformatted_df(tmp_path):
+    """export_to_file accepts a pre-formatted DataFrame, skipping format_response."""
+    test_json = tmp_path / "output.json"
+    df = pd.DataFrame(
+        {
+            "name": ["Pre Group"],
+            "date": ["2024-09-20T18:00:00-05:00"],
+            "title": ["Pre Event"],
+            "description": ["Pre-formatted"],
+            "city": ["Oklahoma City"],
+            "eventUrl": ["https://www.meetup.com/pre/events/1/"],
+        }
+    )
+
+    with patch("meetup_query.json_fn", str(test_json)):
+        export_to_file(None, type="json", df=df)
+
+    with open(test_json) as f:
+        exported_data = json.load(f)
+
+    assert len(exported_data) == 1
+    assert exported_data[0]["title"] == "Pre Event"
+
+
+@pytest.mark.unit
+def test_fmt_events():
+    """fmt_events formats a list of event dicts into Slack message strings."""
+    events = [
+        {
+            "name": "Test Group",
+            "date": "Thu 5/26 11:30 am",
+            "title": "Test Event",
+            "eventUrl": "https://test.url",
+        }
+    ]
+    result = fmt_events(events)
+    assert len(result) == 1
+    assert "Test Group" in result[0]
+    assert "Test Event" in result[0]
+    assert "https://test.url" in result[0]
+
+
+@pytest.mark.unit
+def test_fmt_events_empty():
+    """fmt_events returns empty list for empty input."""
+    assert fmt_events([]) == []
+
+
+@pytest.mark.unit
+def test_prepare_events_deduplicates_and_sorts():
+    """prepare_events deduplicates by eventUrl, sorts by date, drops past events."""
+    future = arrow.now("America/Chicago").shift(days=1).format("YYYY-MM-DDTHH:mm:ssZ")
+    future2 = arrow.now("America/Chicago").shift(days=2).format("YYYY-MM-DDTHH:mm:ssZ")
+    df = pd.DataFrame(
+        {
+            "name": ["A", "B", "A"],
+            "date": [future2, future, future2],
+            "title": ["Event 2", "Event 1", "Event 2 dup"],
+            "description": ["d2", "d1", "d2"],
+            "city": ["Oklahoma City"] * 3,
+            "eventUrl": ["https://url/2", "https://url/1", "https://url/2"],
+        }
+    )
+    result = prepare_events(df)
+    assert len(result) == 2
+    assert result[0]["eventUrl"] == "https://url/1"
+    assert result[1]["eventUrl"] == "https://url/2"
+
+
+@pytest.mark.unit
+def test_prepare_events_empty():
+    """prepare_events returns empty list for empty DataFrame."""
+    df = pd.DataFrame(columns=["name", "date", "title", "description", "city", "eventUrl"])
+    assert prepare_events(df) == []
 
 
 @pytest.mark.unit
