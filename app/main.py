@@ -65,7 +65,7 @@ HOST = config("HOST")
 PORT = config("PORT", default=3000, cast=int)
 SECRET_KEY = config("SECRET_KEY")
 ALGORITHM = config("ALGORITHM", default="HS256")
-TOKEN_EXPIRE = config("TOKEN_EXPIRE", default=30, cast=int)
+TOKEN_EXPIRE = config("TOKEN_EXPIRE", default=480, cast=int)
 
 try:
     DB_USER = config("DB_USER")
