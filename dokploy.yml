@@ -36,7 +36,7 @@ apps:
         type: volume
     schedules:
       - name: weekday-run
-        cronExpression: "0 9 * * 1-5"
+        cronExpression: "0 9 * * 1,3,5"
         command: >-
           python -c "import httpx;
           httpx.post('http://localhost:3000/api/slack',
