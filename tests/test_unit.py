@@ -1032,6 +1032,125 @@ def test_prepare_events_empty():
 
 
 @pytest.mark.unit
+def test_format_response_empty_edges():
+    """format_response returns empty DataFrame when edges list is empty."""
+    response = json.dumps({"data": {"self": {"memberEvents": {"edges": []}}}})
+    with patch("arrow.now", return_value=arrow.get("2024-09-18").to("America/Chicago")):
+        df = format_response(response)
+    assert df.empty
+
+
+@pytest.mark.unit
+def test_format_response_null_member_events():
+    """format_response returns empty DataFrame when memberEvents is null."""
+    response = json.dumps({"data": {"self": {"memberEvents": None}}})
+    with patch("arrow.now", return_value=arrow.get("2024-09-18").to("America/Chicago")):
+        df = format_response(response)
+    assert df.empty
+
+
+@pytest.mark.unit
+def test_format_response_null_group_events():
+    """format_response returns empty DataFrame when groupByUrlname events is null."""
+    response = json.dumps({"data": {"groupByUrlname": {"events": None, "city": "Oklahoma City"}}})
+    with patch("arrow.now", return_value=arrow.get("2024-09-18").to("America/Chicago")):
+        df = format_response(response)
+    assert df.empty
+
+
+@pytest.mark.unit
+def test_sort_json_year_boundary(tmp_path):
+    """sort_json preserves year from ISO 8601 dates near year boundaries."""
+    test_json = tmp_path / "test.json"
+    data = [
+        {"date": "2025-01-02T18:00:00", "eventUrl": "url1"},
+        {"date": "2024-12-30T10:00:00", "eventUrl": "url2"},
+    ]
+    with open(test_json, "w") as f:
+        json.dump(data, f)
+
+    with (
+        patch("meetup_query.json_fn", str(test_json)),
+        patch("arrow.now", return_value=arrow.get("2024-12-29")),
+    ):
+        sort_json(test_json)
+
+    with open(test_json) as f:
+        sorted_data = json.load(f)
+
+    assert len(sorted_data) == 2
+    assert sorted_data[0]["eventUrl"] == "url2"
+    assert sorted_data[1]["eventUrl"] == "url1"
+    assert "12/30" in sorted_data[0]["date"]
+    assert "1/2" in sorted_data[1]["date"]
+
+
+@pytest.mark.unit
+def test_sort_json_human_readable_year_boundary(tmp_path):
+    """sort_json with human-readable dates near year boundary should not guess wrong year."""
+    test_json = tmp_path / "test.json"
+    data = [
+        {"date": "Thu 1/2 6:00 pm", "eventUrl": "url1"},
+        {"date": "Mon 12/30 10:00 am", "eventUrl": "url2"},
+    ]
+    with open(test_json, "w") as f:
+        json.dump(data, f)
+
+    with (
+        patch("meetup_query.json_fn", str(test_json)),
+        patch("arrow.now", return_value=arrow.get("2024-12-29")),
+    ):
+        sort_json(test_json)
+
+    with open(test_json) as f:
+        sorted_data = json.load(f)
+
+    assert len(sorted_data) == 2
+    assert sorted_data[0]["eventUrl"] == "url2"
+    assert sorted_data[1]["eventUrl"] == "url1"
+
+
+@pytest.mark.unit
+def test_prepare_events_human_readable_year_boundary():
+    """prepare_events with human-readable dates near year boundary should not guess wrong year."""
+    df = pd.DataFrame({
+        "name": ["Group A", "Group B"],
+        "date": ["Thu 1/2 6:00 pm", "Mon 12/30 10:00 am"],
+        "title": ["Jan Event", "Dec Event"],
+        "description": ["desc", "desc"],
+        "city": ["OKC", "OKC"],
+        "eventUrl": ["url1", "url2"],
+    })
+    with patch("arrow.now", return_value=arrow.get("2024-12-29")):
+        result = prepare_events(df)
+
+    assert len(result) == 2
+    assert result[0]["eventUrl"] == "url2"
+    assert result[1]["eventUrl"] == "url1"
+
+
+@pytest.mark.unit
+def test_prepare_events_year_boundary():
+    """prepare_events preserves year from ISO 8601 dates near year boundaries."""
+    df = pd.DataFrame({
+        "name": ["Group A", "Group B"],
+        "date": ["2025-01-02T18:00:00", "2024-12-30T10:00:00"],
+        "title": ["Jan Event", "Dec Event"],
+        "description": ["desc", "desc"],
+        "city": ["OKC", "OKC"],
+        "eventUrl": ["url1", "url2"],
+    })
+    with patch("arrow.now", return_value=arrow.get("2024-12-29")):
+        result = prepare_events(df)
+
+    assert len(result) == 2
+    assert result[0]["eventUrl"] == "url2"
+    assert result[1]["eventUrl"] == "url1"
+    assert "12/30" in result[0]["date"]
+    assert "1/2" in result[1]["date"]
+
+
+@pytest.mark.unit
 @patch("meetup_query.gen_token")
 @patch("meetup_query.send_request")
 @patch("meetup_query.send_batched_group_request")

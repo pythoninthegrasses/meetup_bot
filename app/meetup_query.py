@@ -285,16 +285,18 @@ def format_response(response, location: str = "Oklahoma City", exclusions: str =
             data = response_json['data']['self']['memberEvents']['edges']
             if data and len(data) > 0 and data[0]['node']['group']['city'] != location:
                 print(f"{Fore.YELLOW}{warning:<10}{Fore.RESET}Skipping event outside of {location}")
-        except KeyError:
+        except (KeyError, TypeError):
             try:
-                if response_json['data'].get('groupByUrlname') is None:
+                group = response_json['data'].get('groupByUrlname')
+                if group is None:
                     data = ""
                     print(f"{Fore.YELLOW}{warning:<10}{Fore.RESET}Skipping group due to empty response")
                 else:
-                    data = response_json['data']['groupByUrlname']['events']['edges']
-                    if response_json['data']['groupByUrlname']['city'] != location:
+                    events = group.get('events')
+                    data = events['edges'] if events else ""
+                    if data and group.get('city') != location:
                         print(f"{Fore.RED}{error:<10}{Fore.RESET}No data for {location} found")
-            except KeyError as e:
+            except (KeyError, TypeError) as e:
                 print(f"{Fore.RED}{error:<10}{Fore.RESET}KeyError accessing GraphQL data: {e}")
                 print(f"{Fore.RED}{error:<10}{Fore.RESET}Response structure: {json.dumps(response_json, indent=2)[:500]}")
                 data = ""
@@ -390,7 +392,10 @@ def sort_json(filename) -> None:
             try:
                 parsed = arrow.get(value, 'ddd M/D h:mm a')
                 if parsed.year == 1:
-                    parsed = parsed.replace(year=arrow.now(tz).year)
+                    now = arrow.now(tz)
+                    parsed = parsed.replace(year=now.year)
+                    if parsed < now.shift(months=-6):
+                        parsed = parsed.replace(year=now.year + 1)
                 dates[key] = parsed.format('YYYY-MM-DDTHH:mm:ss')
             except ParserError:
                 try:
@@ -443,7 +448,10 @@ def prepare_events(df) -> list[dict]:
             try:
                 parsed = arrow.get(value, 'ddd M/D h:mm a')
                 if parsed.year == 1:
-                    parsed = parsed.replace(year=arrow.now(tz).year)
+                    now = arrow.now(tz)
+                    parsed = parsed.replace(year=now.year)
+                    if parsed < now.shift(months=-6):
+                        parsed = parsed.replace(year=now.year + 1)
                 dates[key] = parsed.format('YYYY-MM-DDTHH:mm:ss')
             except ParserError:
                 try:
