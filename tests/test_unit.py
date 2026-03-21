@@ -1113,14 +1113,16 @@ def test_sort_json_human_readable_year_boundary(tmp_path):
 @pytest.mark.unit
 def test_prepare_events_human_readable_year_boundary():
     """prepare_events with human-readable dates near year boundary should not guess wrong year."""
-    df = pd.DataFrame({
-        "name": ["Group A", "Group B"],
-        "date": ["Thu 1/2 6:00 pm", "Mon 12/30 10:00 am"],
-        "title": ["Jan Event", "Dec Event"],
-        "description": ["desc", "desc"],
-        "city": ["OKC", "OKC"],
-        "eventUrl": ["url1", "url2"],
-    })
+    df = pd.DataFrame(
+        {
+            "name": ["Group A", "Group B"],
+            "date": ["Thu 1/2 6:00 pm", "Mon 12/30 10:00 am"],
+            "title": ["Jan Event", "Dec Event"],
+            "description": ["desc", "desc"],
+            "city": ["OKC", "OKC"],
+            "eventUrl": ["url1", "url2"],
+        }
+    )
     with patch("arrow.now", return_value=arrow.get("2024-12-29")):
         result = prepare_events(df)
 
@@ -1132,14 +1134,16 @@ def test_prepare_events_human_readable_year_boundary():
 @pytest.mark.unit
 def test_prepare_events_year_boundary():
     """prepare_events preserves year from ISO 8601 dates near year boundaries."""
-    df = pd.DataFrame({
-        "name": ["Group A", "Group B"],
-        "date": ["2025-01-02T18:00:00", "2024-12-30T10:00:00"],
-        "title": ["Jan Event", "Dec Event"],
-        "description": ["desc", "desc"],
-        "city": ["OKC", "OKC"],
-        "eventUrl": ["url1", "url2"],
-    })
+    df = pd.DataFrame(
+        {
+            "name": ["Group A", "Group B"],
+            "date": ["2025-01-02T18:00:00", "2024-12-30T10:00:00"],
+            "title": ["Jan Event", "Dec Event"],
+            "description": ["desc", "desc"],
+            "city": ["OKC", "OKC"],
+            "eventUrl": ["url1", "url2"],
+        }
+    )
     with patch("arrow.now", return_value=arrow.get("2024-12-29")):
         result = prepare_events(df)
 
@@ -1367,3 +1371,47 @@ class TestSendBatchedGroupRequest:
     def test_empty_list(self):
         results = send_batched_group_request("fake_token", [])
         assert results == []
+
+
+@pytest.mark.unit
+class TestArrowTimezoneAbbreviation:
+    """Verify arrow ZZZ token produces correct CST/CDT for America/Chicago."""
+
+    @pytest.mark.parametrize(
+        "month, day, expected_abbr",
+        [
+            (1, 15, "CST"),
+            (2, 15, "CST"),
+            (6, 15, "CDT"),
+            (7, 15, "CDT"),
+            (12, 15, "CST"),
+        ],
+        ids=["jan-cst", "feb-cst", "jun-cdt", "jul-cdt", "dec-cst"],
+    )
+    def test_standard_and_daylight_periods(self, month, day, expected_abbr):
+        dt = arrow.Arrow(2026, month, day, 14, 0, tzinfo="America/Chicago")
+        formatted = dt.format("dddd HH:mm ZZZ")
+        assert formatted.endswith(expected_abbr)
+
+    def test_spring_forward_transition(self):
+        """March 8, 2026 is spring-forward day — afternoon is CDT."""
+        dt = arrow.Arrow(2026, 3, 8, 14, 0, tzinfo="America/Chicago")
+        assert dt.format("ZZZ") == "CDT"
+
+    def test_fall_back_transition(self):
+        """November 1, 2026 is fall-back day — afternoon is CST."""
+        dt = arrow.Arrow(2026, 11, 1, 14, 0, tzinfo="America/Chicago")
+        assert dt.format("ZZZ") == "CST"
+
+    def test_format_matches_check_schedule_pattern(self):
+        """The format string used in check-schedule produces expected shape."""
+        dt = arrow.Arrow(2026, 1, 15, 14, 0, tzinfo="America/Chicago")
+        result = dt.format("dddd HH:mm ZZZ")
+        assert result == "Thursday 14:00 CST"
+
+    def test_utc_converted_to_local_preserves_abbr(self):
+        """Converting a UTC time to America/Chicago yields the correct abbreviation."""
+        utc_dt = arrow.Arrow(2026, 6, 15, 19, 0, tzinfo="UTC")
+        local_dt = utc_dt.to("America/Chicago")
+        assert local_dt.format("ZZZ") == "CDT"
+        assert local_dt.format("dddd HH:mm ZZZ") == "Monday 14:00 CDT"
