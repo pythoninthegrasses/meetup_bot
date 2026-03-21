@@ -45,10 +45,6 @@ tz = config("TZ", default="America/Chicago")
 bypass_schedule = config("OVERRIDE", default=False, cast=bool)
 DEV = config("DEV", default=False, cast=bool)
 
-# time
-current_time_local = arrow.now(tz)
-current_time_utc = arrow.utcnow()
-current_day = current_time_local.format("dddd")  # Monday, Tuesday, etc.
 time.tzset()
 
 # pandas don't truncate output
@@ -437,6 +433,9 @@ def should_post_to_slack(auth: dict = Depends(ip_whitelist_or_auth), request: Re
     """
     Check if it's time to post to Slack based on the schedule
     """
+
+    current_time_local = arrow.now(tz)
+    current_day = current_time_local.format("dddd")
 
     with db_session:
         check_and_revert_snooze()  # Check and revert any expired snoozes

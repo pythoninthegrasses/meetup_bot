@@ -342,6 +342,41 @@ def test_check_schedule(test_client, auth_headers):
 
 
 @pytest.mark.unit
+def test_check_schedule_uses_request_time(test_client, auth_headers):
+    """Time values should be computed per-request, not at module load."""
+    mock_schedule_obj = MagicMock()
+    mock_schedule_obj.enabled = True
+    mock_schedule_obj.schedule_time = "14:00"
+
+    mock_db_ctx = MagicMock()
+    mock_db_ctx.__enter__ = MagicMock()
+    mock_db_ctx.__exit__ = MagicMock(return_value=False)
+
+    def db_session_passthrough(f=None, *a, **kw):
+        if f is not None and callable(f):
+            return f
+        return mock_db_ctx
+
+    request_time = arrow.Arrow(2026, 7, 15, 14, 5, tzinfo="America/Chicago")
+
+    with (
+        patch('pony.orm.db_session', side_effect=db_session_passthrough),
+        patch('main.db_session', side_effect=db_session_passthrough),
+        patch('schedule.db_session', side_effect=db_session_passthrough),
+        patch('main.check_and_revert_snooze'),
+        patch('main.get_schedule', return_value=mock_schedule_obj),
+        patch('main.get_current_schedule_time', return_value=("14:00 UTC", "14:00 CDT")),
+        patch('main.arrow') as mock_arrow,
+    ):
+        mock_arrow.now.return_value = request_time
+        mock_arrow.get = arrow.get
+        response = test_client.get("/api/check-schedule", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert "Wednesday" in data["current_time"], f"Expected Wednesday (request time) but got: {data['current_time']}"
+
+
+@pytest.mark.unit
 def test_post_slack(test_client, auth_headers):
     mock_message = ["Test message"]
     mock_events = [{"name": "G", "date": "Thu 5/26 11:30 am", "title": "E", "eventUrl": "https://u"}]

@@ -1,9 +1,10 @@
 ---
 id: TASK-020
 title: Fix stale module-level current_time_local in main.py
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-21 00:58'
+updated_date: '2026-03-21 01:12'
 labels:
   - bug
 dependencies: []
@@ -21,7 +22,13 @@ priority: medium
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 current_time_local, current_time_utc, and current_day are computed per-request in endpoints that use them
-- [ ] #2 Existing tests continue to pass
-- [ ] #3 Add test verifying time values reflect request time, not server startup time
+- [x] #1 current_time_local, current_time_utc, and current_day are computed per-request in endpoints that use them
+- [x] #2 Existing tests continue to pass
+- [x] #3 Add test verifying time values reflect request time, not server startup time
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Moved `current_time_local`, `current_time_utc`, and `current_day` from module-level constants to per-request computation inside `should_post_to_slack()`. Removed `current_time_utc` entirely (unused). Added `test_check_schedule_uses_request_time` to verify the endpoint reflects request time, not server startup time.
+<!-- SECTION:FINAL_SUMMARY:END -->
