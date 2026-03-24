@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1.7.0
+# check=skip=all
 
 # full semver just for python base image
-ARG PYTHON_VERSION=3.11.11
+ARG PYTHON_VERSION=3.11.13
 
 FROM python:${PYTHON_VERSION}-slim-bookworm as builder
 
@@ -9,13 +10,14 @@ FROM python:${PYTHON_VERSION}-slim-bookworm as builder
 ARG DEBIAN_FRONTEND=noninteractive
 
 # install dependencies
-RUN apt-get -qq update \
-    && apt-get -qq install \
-    --no-install-recommends -y \
-    curl \
-    gcc \
-    python3-dev \
-    && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+  --mount=type=cache,target=/var/lib/apt,sharing=locked \
+  apt-get -qq update \
+  && apt-get -qq install \
+  --no-install-recommends -y \
+  curl \
+  gcc \
+  python3-dev
 
 # pip env vars
 ENV PIP_NO_CACHE_DIR=off
@@ -36,8 +38,9 @@ COPY ./app .
 COPY ./README.md .
 COPY pyproject.toml .
 
-RUN uv venv $UV_PROJECT_ENVIRONMENT \
-    && uv pip install -r pyproject.toml
+RUN --mount=type=cache,target=/root/.cache/uv \
+  uv venv $UV_PROJECT_ENVIRONMENT \
+  && uv pip install -r pyproject.toml
 
 FROM python:${PYTHON_VERSION}-slim-bookworm as runner
 
@@ -64,23 +67,24 @@ ENV WEB_CONCURRENCY=2
 ARG DEBIAN_FRONTEND=noninteractive
 
 # install dependencies
-RUN apt-get -qq update \
-    && apt-get -qq install \
-    --no-install-recommends -y \
-    curl \
-    lsof \
-    && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+  --mount=type=cache,target=/var/lib/apt,sharing=locked \
+  apt-get -qq update \
+  && apt-get -qq install \
+  --no-install-recommends -y \
+  curl \
+  lsof
 
 # add non-root user
 ARG UID=10001
 RUN adduser \
-    --disabled-password \
-    --gecos "" \
-    --home "/nonexistent" \
-    --shell "/sbin/nologin" \
-    --no-create-home \
-    --uid "${UID}" \
-    ${USER_NAME}
+  --disabled-password \
+  --gecos "" \
+  --home "/nonexistent" \
+  --shell "/sbin/nologin" \
+  --no-create-home \
+  --uid "${UID}" \
+  ${USER_NAME}
 
 RUN mkdir -p /data && chown 10001:10001 /data
 
