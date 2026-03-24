@@ -14,7 +14,7 @@ from db import APP_DIR, UserInfo, init_db
 from decouple import config
 from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.templating import Jinja2Templates
 from icecream import ic
@@ -27,7 +27,6 @@ from pydantic import BaseModel
 from schedule import check_and_revert_snooze, get_current_schedule_time, get_schedule, snooze_schedule
 from sign_jwt import main as gen_token
 from slackbot import *
-from typing import List, Union
 
 # verbose icecream
 ic.configureOutput(includeContext=True)
@@ -46,10 +45,6 @@ tz = config("TZ", default="America/Chicago")
 bypass_schedule = config("OVERRIDE", default=False, cast=bool)
 DEV = config("DEV", default=False, cast=bool)
 
-# time
-current_time_local = arrow.now(tz)
-current_time_utc = arrow.utcnow()
-current_day = current_time_local.format("dddd")  # Monday, Tuesday, etc.
 time.tzset()
 
 # pandas don't truncate output
@@ -66,7 +61,7 @@ HOST = config("HOST")
 PORT = config("PORT", default=3000, cast=int)
 SECRET_KEY = config("SECRET_KEY")
 ALGORITHM = config("ALGORITHM", default="HS256")
-TOKEN_EXPIRE = config("TOKEN_EXPIRE", default=30, cast=int)
+TOKEN_EXPIRE = config("TOKEN_EXPIRE", default=480, cast=int)
 
 try:
     DB_USER = config("DB_USER")
@@ -87,12 +82,17 @@ IP Address Whitelisting
 DISABLE_IP_WHITELIST = config("DISABLE_IP_WHITELIST", default=False, cast=bool)
 
 
+def _parse_public_ips() -> list[str]:
+    raw = config("PUBLIC_IPS", default="")
+    return [ip.strip() for ip in raw.split(",") if ip.strip()]
+
+
 class IPConfig(BaseModel):
     whitelist: list[str] = ["localhost", "127.0.0.1"]
     public_ips: list[str] = []
 
 
-ip_config = IPConfig()
+ip_config = IPConfig(public_ips=_parse_public_ips())
 
 
 def is_ip_allowed(request: Request):
@@ -120,7 +120,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 # main web app
-app = FastAPI(title="meetup_bot API", openapi_url="/meetup_bot.json", lifespan=lifespan)
+app = FastAPI(
+    title="meetup_bot API",
+    openapi_url="/meetup_bot.json",
+    lifespan=lifespan,
+    swagger_ui_parameters={"persistAuthorization": True},
+)
 
 # add `/api` route in front of all other endpoints
 api_router = APIRouter(prefix="/api")
@@ -202,18 +207,17 @@ def authenticate_user(username: str, password: str):
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     """Create access token"""
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=TOKEN_EXPIRE)
+    expire = datetime.utcnow() + expires_delta if expires_delta else datetime.utcnow() + timedelta(minutes=TOKEN_EXPIRE)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
     return encoded_jwt
 
 
-async def get_current_user(token: str | None = Depends(oauth2_scheme)):
-    """Get current user"""
+async def get_current_user(request: Request, token: str | None = Depends(oauth2_scheme)):
+    """Get current user from Bearer token or session_token cookie."""
+    if token is None:
+        token = request.cookies.get("session_token")
     if token is None:
         return None
     credentials_exception = HTTPException(
@@ -227,8 +231,8 @@ async def get_current_user(token: str | None = Depends(oauth2_scheme)):
         if username is None:
             raise credentials_exception
         token_data = TokenData(username=username)
-    except JWTError:
-        raise credentials_exception
+    except JWTError as err:
+        raise credentials_exception from err
     user = get_user(username=token_data.username)
     if user is None:
         raise credentials_exception
@@ -284,7 +288,16 @@ async def login_for_oauth_token(form_data: OAuth2PasswordRequestForm = Depends()
     oauth_token_expires = timedelta(minutes=TOKEN_EXPIRE)
     oauth_token = create_access_token(data={"sub": user.username}, expires_delta=oauth_token_expires)
 
-    return {"access_token": oauth_token, "token_type": "bearer"}
+    response = JSONResponse(content={"access_token": oauth_token, "token_type": "bearer"})
+    response.set_cookie(
+        key="session_token",
+        value=oauth_token,
+        httponly=True,
+        secure=not DEV,
+        samesite="lax",
+        max_age=TOKEN_EXPIRE * 60,
+    )
+    return response
 
 
 """
@@ -322,7 +335,18 @@ def index(request: Request):
 def login(request: Request, username: str = Form(...), password: str = Form(...)):
     """Redirect to "/docs" from index page if user successfully logs in with HTML form"""
     if load_user(username) and verify_password(password, load_user(username).hashed_password):
-        return RedirectResponse(url="/docs", status_code=303)
+        oauth_token_expires = timedelta(minutes=TOKEN_EXPIRE)
+        oauth_token = create_access_token(data={"sub": username}, expires_delta=oauth_token_expires)
+        response = RedirectResponse(url="/docs", status_code=303)
+        response.set_cookie(
+            key="session_token",
+            value=oauth_token,
+            httponly=True,
+            secure=not DEV,
+            samesite="lax",
+            max_age=TOKEN_EXPIRE * 60,
+        )
+        return response
 
 
 @api_router.get("/token")
@@ -347,7 +371,7 @@ def generate_token(current_user: User = Depends(get_current_active_user)):
         refresh_token = tokens["refresh_token"]
     except KeyError as e:
         print(f"{Fore.RED}{error:<10}{Fore.RESET}KeyError: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise HTTPException(status_code=500, detail="Internal Server Error") from e
 
     return access_token, refresh_token
 
@@ -384,28 +408,24 @@ def get_events(
         exclusion_list = exclusion_list + exclusions
 
     response = send_request(access_token, query, vars)
-
-    export_to_file(response, format, exclusions=exclusion_list)
+    frames = [format_response(response, exclusions=exclusion_list)]
 
     # third-party query (batched)
     responses = send_batched_group_request(access_token, url_vars)
-    output = []
     for i, response in enumerate(responses):
-        if len(format_response(response, exclusions=exclusion_list)) > 0:
-            output.append(response)
+        df = format_response(response, exclusions=exclusion_list)
+        if len(df) > 0:
+            frames.append(df)
         else:
             print(f"{Fore.GREEN}{info:<10}{Fore.RESET}No upcoming events for {url_vars[i]} found")
-    for resp in output:
-        export_to_file(resp, format)
 
-    # cleanup output file
-    sort_json(json_fn)
+    combined = pd.concat(frames, ignore_index=True)
+    events = prepare_events(combined)
 
-    # check if file exists after sorting
-    if not os.path.exists(json_fn) or os.stat(json_fn).st_size == 0:
+    if not events:
         return {"message": "No events found", "events": []}
 
-    return pd.read_json(json_fn).to_dict('records')
+    return events
 
 
 @api_router.get("/check-schedule")
@@ -413,6 +433,9 @@ def should_post_to_slack(auth: dict = Depends(ip_whitelist_or_auth), request: Re
     """
     Check if it's time to post to Slack based on the schedule
     """
+
+    current_time_local = arrow.now(tz)
+    current_day = current_time_local.format("dddd")
 
     with db_session:
         check_and_revert_snooze()  # Check and revert any expired snoozes
@@ -465,19 +488,18 @@ def post_slack(
 
     check_auth(auth)
 
-    get_events(auth=auth, location=location, exclusions=exclusions)
+    events = get_events(auth=auth, location=location, exclusions=exclusions)
 
-    # open json file and convert to list of strings
-    msg = fmt_json(json_fn)
+    # handle "no events found" response
+    if isinstance(events, dict):
+        events = events.get("events", [])
 
-    # if channel_name is not None, post to channel as one concatenated string
+    msg = fmt_events(events)
+
     if channel_name is not None:
-        # get channel id chan_dict key value pair
         channel_id = chan_dict[channel_name]
-        # post to single channel
         send_message("\n".join(msg), channel_id)
     else:
-        # post to all channels
         for name, id in channels.items():
             send_message("\n".join(msg), id)
 
@@ -503,7 +525,7 @@ def snooze_slack_post(
         snooze_schedule(duration)
         return {"message": f"Slack post snoozed for {duration}"}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @api_router.get("/schedule")

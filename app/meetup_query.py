@@ -244,11 +244,7 @@ def send_request(token, query, vars) -> str:
     headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json; charset=utf-8'}
 
     try:
-        # Parse vars string to JSON object if it's a string
-        if isinstance(vars, str):
-            variables = json.loads(vars)
-        else:
-            variables = vars
+        variables = json.loads(vars) if isinstance(vars, str) else vars
 
         r = http_client.post(endpoint, json={'query': query, 'variables': variables}, headers=headers)
         print(f"{Fore.GREEN}{info:<10}{Fore.RESET}Response HTTP Response Body: {r.status_code}")
@@ -289,16 +285,18 @@ def format_response(response, location: str = "Oklahoma City", exclusions: str =
             data = response_json['data']['self']['memberEvents']['edges']
             if data and len(data) > 0 and data[0]['node']['group']['city'] != location:
                 print(f"{Fore.YELLOW}{warning:<10}{Fore.RESET}Skipping event outside of {location}")
-        except KeyError:
+        except (KeyError, TypeError):
             try:
-                if response_json['data'].get('groupByUrlname') is None:
+                group = response_json['data'].get('groupByUrlname')
+                if group is None:
                     data = ""
                     print(f"{Fore.YELLOW}{warning:<10}{Fore.RESET}Skipping group due to empty response")
                 else:
-                    data = response_json['data']['groupByUrlname']['events']['edges']
-                    if response_json['data']['groupByUrlname']['city'] != location:
+                    events = group.get('events')
+                    data = events['edges'] if events else ""
+                    if data and group.get('city') != location:
                         print(f"{Fore.RED}{error:<10}{Fore.RESET}No data for {location} found")
-            except KeyError as e:
+            except (KeyError, TypeError) as e:
                 print(f"{Fore.RED}{error:<10}{Fore.RESET}KeyError accessing GraphQL data: {e}")
                 print(f"{Fore.RED}{error:<10}{Fore.RESET}Response structure: {json.dumps(response_json, indent=2)[:500]}")
                 data = ""
@@ -394,7 +392,10 @@ def sort_json(filename) -> None:
             try:
                 parsed = arrow.get(value, 'ddd M/D h:mm a')
                 if parsed.year == 1:
-                    parsed = parsed.replace(year=arrow.now(tz).year)
+                    now = arrow.now(tz)
+                    parsed = parsed.replace(year=now.year)
+                    if parsed < now.shift(months=-6):
+                        parsed = parsed.replace(year=now.year + 1)
                 dates[key] = parsed.format('YYYY-MM-DDTHH:mm:ss')
             except ParserError:
                 try:
@@ -432,14 +433,56 @@ def sort_json(filename) -> None:
         json.dump(data, f, indent=2)
 
 
-def export_to_file(response, type: str = 'json', exclusions: str = '') -> None:
+def prepare_events(df) -> list[dict]:
+    """Deduplicate, sort, filter past events, and format dates on a DataFrame. Returns list of dicts."""
+    if df.empty:
+        return []
+
+    df = df.drop_duplicates(subset='eventUrl').copy()
+
+    dates = df['date'].to_dict()
+    for key, value in dates.items():
+        if isinstance(value, pd.Timestamp):
+            dates[key] = value.strftime('%Y-%m-%dT%H:%M:%S')
+        elif isinstance(value, str):
+            try:
+                parsed = arrow.get(value, 'ddd M/D h:mm a')
+                if parsed.year == 1:
+                    now = arrow.now(tz)
+                    parsed = parsed.replace(year=now.year)
+                    if parsed < now.shift(months=-6):
+                        parsed = parsed.replace(year=now.year + 1)
+                dates[key] = parsed.format('YYYY-MM-DDTHH:mm:ss')
+            except ParserError:
+                try:
+                    dates[key] = arrow.get(value).format('YYYY-MM-DDTHH:mm:ss')
+                except ParserError:
+                    print(f"{Fore.RED}{error:<10}{Fore.RESET}Unparseable date: {value!r}")
+                    dates[key] = None
+        else:
+            print(f"{Fore.YELLOW}{warning:<10}{Fore.RESET}Unexpected date type {type(value).__name__}: {value!r}")
+            dates[key] = None
+    df['date'] = pd.Series(dates)
+
+    df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%dT%H:%M:%S', errors='coerce')
+    df['date'] = df['date'].dt.tz_localize(None)
+    df['date'] = df['date'].apply(lambda x: x.replace(year=1970, month=1, day=1) if pd.isnull(x) else x)
+
+    df = df.sort_values(by=['date'])
+    df = df[df['date'] >= arrow.now(tz).format('YYYY-MM-DDTHH:mm:ss')]
+    df = df.reset_index(drop=True)
+
+    df['date'] = df['date'].apply(lambda x: arrow.get(x).format('ddd M/D h:mm a'))
+
+    return json.loads(df.to_json(orient='records', force_ascii=False))
+
+
+def export_to_file(response, type: str = 'json', exclusions: str = '', df=None) -> None:
     """
     Export to CSV or JSON
     """
-    if exclusions != '':
-        df = format_response(response, exclusions=exclusions)
-    else:
-        df = format_response(response)
+    if df is None:
+        df = format_response(response, exclusions=exclusions) if exclusions != '' else format_response(response)
 
     # If DataFrame is empty, return early
     if df.empty:

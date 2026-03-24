@@ -27,7 +27,7 @@ tasks:
     desc: "Run integration tests (manages server lifecycle)"
     cmds:
       - task: server:start
-      - defer: { task: server:stop }
+      - defer: {task: server:stop}
       - task: server:wait
       - pytest -m integration {{.CLI_ARGS}}
 

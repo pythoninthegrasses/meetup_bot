@@ -216,3 +216,42 @@ class TestEventRetrieval:
     def test_get_events_no_params_uses_defaults(self, auth_session, base_url):
         resp = auth_session.get(f"{base_url}/api/events")
         assert resp.status_code == 200
+
+
+@pytest.mark.e2e
+class TestCookieAuth:
+    def test_token_endpoint_sets_session_cookie(self, e2e_server, base_url):
+        with httpx.Client() as client:
+            resp = client.post(
+                f"{base_url}/token",
+                data={"username": e2e_server["db_user"], "password": e2e_server["db_pass"]},
+            )
+            assert resp.status_code == 200
+            assert "session_token" in resp.cookies
+
+    def test_cookie_auth_accesses_protected_endpoint(self, e2e_server, base_url):
+        with httpx.Client() as client:
+            resp = client.post(
+                f"{base_url}/token",
+                data={"username": e2e_server["db_user"], "password": e2e_server["db_pass"]},
+            )
+            assert resp.status_code == 200
+            cookie_token = resp.cookies["session_token"]
+
+            client.cookies.set("session_token", cookie_token)
+            resp = client.get(f"{base_url}/api/events")
+            assert resp.status_code == 200
+
+    def test_bearer_still_works_without_cookie(self, auth_session, base_url):
+        resp = auth_session.get(f"{base_url}/api/events")
+        assert resp.status_code == 200
+
+    def test_form_login_sets_session_cookie(self, e2e_server, base_url):
+        with httpx.Client() as client:
+            resp = client.post(
+                f"{base_url}/auth/login",
+                data={"username": e2e_server["db_user"], "password": e2e_server["db_pass"]},
+                follow_redirects=False,
+            )
+            assert resp.status_code == 303
+            assert "session_token" in resp.cookies

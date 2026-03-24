@@ -1,10 +1,10 @@
 ---
 id: TASK-001
 title: Bump FastAPI from >=0.115.6 to >=0.133.1
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-02-26 16:25'
-updated_date: '2026-03-17 02:09'
+updated_date: '2026-03-21 01:19'
 labels:
   - dependencies
 dependencies:
@@ -27,8 +27,14 @@ Update FastAPI dependency in pyproject.toml from >=0.115.6 to >=0.133.1. This is
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Review and update test suite for compatibility with FastAPI 0.133.1 before upgrading
-- [ ] #2 Bump fastapi dependency to >=0.133.1 in pyproject.toml
-- [ ] #3 All existing tests pass after upgrade
-- [ ] #4 Verify /token, /healthz, /, and /auth/login endpoints work correctly
+- [x] #1 Review and update test suite for compatibility with FastAPI 0.133.1 before upgrading
+- [x] #2 Bump fastapi dependency to >=0.133.1 in pyproject.toml
+- [x] #3 All existing tests pass after upgrade
+- [x] #4 Verify /token, /healthz, /, and /auth/login endpoints work correctly
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Upgraded from FastAPI 0.115.14 to 0.135.1 (resolved from >=0.133.1). Relaxed python-multipart upper bound from <0.0.10 to uncapped. No code changes required — all APIs used (TestClient, Form, Depends, CORSMiddleware, etc.) remained stable. New transitive dep: annotated-doc 0.0.4.
+<!-- SECTION:NOTES:END -->

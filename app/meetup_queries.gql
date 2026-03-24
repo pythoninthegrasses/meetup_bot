@@ -11,15 +11,15 @@ query {
 	}
 }
 
-# join first party events then filter group info
+# first-party events (techlahoma member events)
 query {
 	self {
 		id
 		name
 		username
 		memberUrl
-		upcomingEvents {
-			count
+		memberEvents(first: 10) {
+			totalCount
 			pageInfo {
 				endCursor
 			}
@@ -43,7 +43,7 @@ query {
 	}
 }
 
-#  events by query var
+# events by query var
 # {"eventId":"285533748"}
 query($eventId: ID) {
 	event(id: $eventId) {
@@ -84,8 +84,8 @@ query($id: ID!) {
 	}
 }
 
-# search for non pro network group by urlname
-{"urlname":"pythonistas"}
+# group by urlname (third-party / unaffiliated groups)
+# {"urlname":"pythonistas"}
 query($urlname: String!) {
 	groupByUrlname(urlname: $urlname) {
 		id
@@ -94,8 +94,8 @@ query($urlname: String!) {
 		urlname
 		city
 		link
-		upcomingEvents(input: { first: 3 }) {
-			count
+		events(first: 3) {
+			totalCount
 			pageInfo {
 				endCursor
 			}
@@ -119,8 +119,45 @@ query($urlname: String!) {
 	}
 }
 
-# query OKC area for programming groups' IDs
+# group by ID (validated: IDs match between groupByUrlname and groupSearch)
+# {"id":"35460866"}
+query($id: ID!) {
+	group(id: $id) {
+		id
+		description
+		name
+		urlname
+		city
+		link
+		events(first: 3) {
+			totalCount
+			pageInfo {
+				endCursor
+			}
+			edges {
+				node {
+					id
+					title
+					description
+					dateTime
+					eventUrl
+					group {
+						id
+						name
+						urlname
+						link
+						city
+					}
+				}
+			}
+		}
+	}
+}
+
+# keyword search for programming groups in OKC area
 # topicCategoryId 546 = Technology (from topicCategories query)
+# IDs returned here match groupByUrlname IDs (verified for pythonistas, okcwebdevs, okccoffeeandcode)
+# node(id:) does NOT exist in Meetup's schema; use group(id:) or groupByUrlname(urlname:) instead
 {"query": "programming", "topicCategoryId": "546"}
 query ($query: String!, $topicCategoryId: ID) {
 	groupSearch(
@@ -145,4 +182,3 @@ query ($query: String!, $topicCategoryId: ID) {
 		}
 	}
 }
-

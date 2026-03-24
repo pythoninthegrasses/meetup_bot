@@ -13,19 +13,21 @@ from capture_groups import (
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from jose import jwt
-from main import UserInDB, app, get_current_user
+from main import IPConfig, UserInDB, app, get_current_user, is_ip_allowed
 from meetup_query import (
     build_batched_group_query,
     export_to_file,
     format_response,
     http_client,
     main,
+    prepare_events,
     send_batched_group_request,
     send_request,
     sort_csv,
     sort_json,
 )
 from pathlib import Path
+from slackbot import fmt_events
 from unittest.mock import MagicMock, patch
 
 # ── Fixtures ────────────────────────────────────────────────────────
@@ -294,19 +296,15 @@ def test_get_events(test_client, auth_headers):
         }
     ]
 
+    mock_df = pd.DataFrame(columns=["name", "date", "title", "description", "city", "eventUrl"])
+
     with (
         patch('main.generate_token', return_value=("fake_access", "fake_refresh")),
         patch('main.send_request'),
         patch('main.send_batched_group_request', return_value=[]),
-        patch('main.export_to_file'),
-        patch('main.format_response', return_value=MagicMock(__len__=lambda s: 0)),
-        patch('main.sort_json'),
-        patch('main.os.path.exists', return_value=True),
-        patch('main.os.stat', return_value=MagicMock(st_size=100)),
-        patch('main.pd.read_json') as mock_read_json,
+        patch('main.format_response', return_value=mock_df),
+        patch('main.prepare_events', return_value=mock_events),
     ):
-        mock_read_json.return_value = MagicMock()
-        mock_read_json.return_value.to_dict.return_value = mock_events
         response = test_client.get(
             "/api/events", headers=auth_headers, params={"location": "Oklahoma City", "exclusions": "Tulsa"}
         )
@@ -344,12 +342,48 @@ def test_check_schedule(test_client, auth_headers):
 
 
 @pytest.mark.unit
-def test_post_slack(test_client, auth_headers):
-    mock_message = ["Test message"]
+def test_check_schedule_uses_request_time(test_client, auth_headers):
+    """Time values should be computed per-request, not at module load."""
+    mock_schedule_obj = MagicMock()
+    mock_schedule_obj.enabled = True
+    mock_schedule_obj.schedule_time = "14:00"
+
+    mock_db_ctx = MagicMock()
+    mock_db_ctx.__enter__ = MagicMock()
+    mock_db_ctx.__exit__ = MagicMock(return_value=False)
+
+    def db_session_passthrough(f=None, *a, **kw):
+        if f is not None and callable(f):
+            return f
+        return mock_db_ctx
+
+    request_time = arrow.Arrow(2026, 7, 15, 14, 5, tzinfo="America/Chicago")
 
     with (
-        patch('main.get_events'),
-        patch('main.fmt_json', return_value=mock_message),
+        patch('pony.orm.db_session', side_effect=db_session_passthrough),
+        patch('main.db_session', side_effect=db_session_passthrough),
+        patch('schedule.db_session', side_effect=db_session_passthrough),
+        patch('main.check_and_revert_snooze'),
+        patch('main.get_schedule', return_value=mock_schedule_obj),
+        patch('main.get_current_schedule_time', return_value=("14:00 UTC", "14:00 CDT")),
+        patch('main.arrow') as mock_arrow,
+    ):
+        mock_arrow.now.return_value = request_time
+        mock_arrow.get = arrow.get
+        response = test_client.get("/api/check-schedule", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert "Wednesday" in data["current_time"], f"Expected Wednesday (request time) but got: {data['current_time']}"
+
+
+@pytest.mark.unit
+def test_post_slack(test_client, auth_headers):
+    mock_message = ["Test message"]
+    mock_events = [{"name": "G", "date": "Thu 5/26 11:30 am", "title": "E", "eventUrl": "https://u"}]
+
+    with (
+        patch('main.get_events', return_value=mock_events),
+        patch('main.fmt_events', return_value=mock_message),
         patch('main.send_message'),
         patch('main.chan_dict', {"test-channel": "C12345"}),
     ):
@@ -371,8 +405,8 @@ def test_post_slack_passes_auth_to_get_events(test_client, auth_headers):
     mock_message = ["Test message"]
 
     with (
-        patch('main.get_events') as mock_get_events,
-        patch('main.fmt_json', return_value=mock_message),
+        patch('main.get_events', return_value=[]) as mock_get_events,
+        patch('main.fmt_events', return_value=mock_message),
         patch('main.send_message'),
         patch('main.chan_dict', {"test-channel": "C12345"}),
     ):
@@ -464,6 +498,141 @@ def test_invalid_token(raw_test_client):
         response = raw_test_client.get("/api/events", headers=headers)
         assert response.status_code == 401
         assert "detail" in response.json()
+
+
+# ── IP whitelisting tests ──────────────────────────────────────────
+
+
+@pytest.mark.unit
+class TestIPConfigPublicIps:
+    """IPConfig.public_ips should be configurable via PUBLIC_IPS env var."""
+
+    def test_default_public_ips_empty(self):
+        cfg = IPConfig()
+        assert cfg.public_ips == []
+
+    def test_public_ips_from_env_single(self):
+        with patch.dict(os.environ, {"PUBLIC_IPS": "10.0.0.1"}):
+            from main import _parse_public_ips
+
+            ips = _parse_public_ips()
+            assert ips == ["10.0.0.1"]
+
+    def test_public_ips_from_env_multiple(self):
+        with patch.dict(os.environ, {"PUBLIC_IPS": "10.0.0.1,192.168.1.1,172.16.0.1"}):
+            from main import _parse_public_ips
+
+            ips = _parse_public_ips()
+            assert ips == ["10.0.0.1", "192.168.1.1", "172.16.0.1"]
+
+    def test_public_ips_from_env_empty(self):
+        with patch.dict(os.environ, {"PUBLIC_IPS": ""}):
+            from main import _parse_public_ips
+
+            ips = _parse_public_ips()
+            assert ips == []
+
+    def test_public_ips_strips_whitespace(self):
+        with patch.dict(os.environ, {"PUBLIC_IPS": " 10.0.0.1 , 192.168.1.1 "}):
+            from main import _parse_public_ips
+
+            ips = _parse_public_ips()
+            assert ips == ["10.0.0.1", "192.168.1.1"]
+
+
+@pytest.mark.unit
+class TestIsIpAllowedWithPublicIps:
+    """is_ip_allowed should match against both whitelist and public_ips."""
+
+    def test_allowed_via_public_ips(self):
+        mock_request = MagicMock()
+        mock_request.client.host = "203.0.113.50"
+        with patch("main.ip_config", IPConfig(public_ips=["203.0.113.50"])):
+            assert is_ip_allowed(mock_request) is True
+
+    def test_denied_when_not_in_either_list(self):
+        mock_request = MagicMock()
+        mock_request.client.host = "203.0.113.99"
+        with patch("main.ip_config", IPConfig(public_ips=["203.0.113.50"])):
+            assert is_ip_allowed(mock_request) is False
+
+    def test_allowed_via_whitelist(self):
+        mock_request = MagicMock()
+        mock_request.client.host = "127.0.0.1"
+        with patch("main.ip_config", IPConfig()):
+            assert is_ip_allowed(mock_request) is True
+
+
+# ── Cookie auth tests ─────────────────────────────────────────────
+
+
+@pytest.mark.unit
+class TestCookieAuth:
+    """get_current_user should fall back to session_token cookie when no Bearer token."""
+
+    def test_cookie_auth_returns_user(self, raw_test_client):
+        from main import ALGORITHM, SECRET_KEY, get_password_hash
+
+        token = jwt.encode({"sub": "testuser"}, SECRET_KEY, algorithm=ALGORITHM)
+        with (
+            patch("main.DEV", False),
+            patch("main.is_ip_allowed", return_value=False),
+            patch(
+                "main.get_user",
+                return_value=UserInDB(
+                    username="testuser",
+                    email="test@example.com",
+                    hashed_password=get_password_hash("pass"),
+                ),
+            ),
+        ):
+            raw_test_client.cookies.set("session_token", token)
+            response = raw_test_client.get("/api/events")
+            raw_test_client.cookies.clear()
+            assert response.status_code == 200
+
+    def test_bearer_takes_precedence_over_cookie(self, raw_test_client):
+        from main import ALGORITHM, SECRET_KEY, get_password_hash
+
+        good_token = jwt.encode({"sub": "testuser"}, SECRET_KEY, algorithm=ALGORITHM)
+        bad_cookie = "invalid_cookie_token"
+        with (
+            patch("main.DEV", False),
+            patch("main.is_ip_allowed", return_value=False),
+            patch(
+                "main.get_user",
+                return_value=UserInDB(
+                    username="testuser",
+                    email="test@example.com",
+                    hashed_password=get_password_hash("pass"),
+                ),
+            ),
+        ):
+            raw_test_client.cookies.set("session_token", bad_cookie)
+            response = raw_test_client.get(
+                "/api/events",
+                headers={"Authorization": f"Bearer {good_token}"},
+            )
+            raw_test_client.cookies.clear()
+            assert response.status_code == 200
+
+    def test_invalid_cookie_returns_401(self, raw_test_client):
+        with (
+            patch("main.DEV", False),
+            patch("main.is_ip_allowed", return_value=False),
+        ):
+            raw_test_client.cookies.set("session_token", "invalid")
+            response = raw_test_client.get("/api/events")
+            raw_test_client.cookies.clear()
+            assert response.status_code == 401
+
+    def test_no_token_no_cookie_returns_401(self, raw_test_client):
+        with (
+            patch("main.DEV", False),
+            patch("main.is_ip_allowed", return_value=False),
+        ):
+            response = raw_test_client.get("/api/events")
+            assert response.status_code == 401
 
 
 # ── Deprecation / bcrypt tests ──────────────────────────────────────
@@ -821,6 +990,206 @@ def test_export_to_file(mock_response, tmp_path):
 
 
 @pytest.mark.unit
+def test_export_to_file_with_preformatted_df(tmp_path):
+    """export_to_file accepts a pre-formatted DataFrame, skipping format_response."""
+    test_json = tmp_path / "output.json"
+    df = pd.DataFrame(
+        {
+            "name": ["Pre Group"],
+            "date": ["2024-09-20T18:00:00-05:00"],
+            "title": ["Pre Event"],
+            "description": ["Pre-formatted"],
+            "city": ["Oklahoma City"],
+            "eventUrl": ["https://www.meetup.com/pre/events/1/"],
+        }
+    )
+
+    with patch("meetup_query.json_fn", str(test_json)):
+        export_to_file(None, type="json", df=df)
+
+    with open(test_json) as f:
+        exported_data = json.load(f)
+
+    assert len(exported_data) == 1
+    assert exported_data[0]["title"] == "Pre Event"
+
+
+@pytest.mark.unit
+def test_fmt_events():
+    """fmt_events formats a list of event dicts into Slack message strings."""
+    events = [
+        {
+            "name": "Test Group",
+            "date": "Thu 5/26 11:30 am",
+            "title": "Test Event",
+            "eventUrl": "https://test.url",
+        }
+    ]
+    result = fmt_events(events)
+    assert len(result) == 1
+    assert "Test Group" in result[0]
+    assert "Test Event" in result[0]
+    assert "https://test.url" in result[0]
+
+
+@pytest.mark.unit
+def test_fmt_events_empty():
+    """fmt_events returns empty list for empty input."""
+    assert fmt_events([]) == []
+
+
+@pytest.mark.unit
+def test_prepare_events_deduplicates_and_sorts():
+    """prepare_events deduplicates by eventUrl, sorts by date, drops past events."""
+    future = arrow.now("America/Chicago").shift(days=1).format("YYYY-MM-DDTHH:mm:ssZ")
+    future2 = arrow.now("America/Chicago").shift(days=2).format("YYYY-MM-DDTHH:mm:ssZ")
+    df = pd.DataFrame(
+        {
+            "name": ["A", "B", "A"],
+            "date": [future2, future, future2],
+            "title": ["Event 2", "Event 1", "Event 2 dup"],
+            "description": ["d2", "d1", "d2"],
+            "city": ["Oklahoma City"] * 3,
+            "eventUrl": ["https://url/2", "https://url/1", "https://url/2"],
+        }
+    )
+    result = prepare_events(df)
+    assert len(result) == 2
+    assert result[0]["eventUrl"] == "https://url/1"
+    assert result[1]["eventUrl"] == "https://url/2"
+
+
+@pytest.mark.unit
+def test_prepare_events_empty():
+    """prepare_events returns empty list for empty DataFrame."""
+    df = pd.DataFrame(columns=["name", "date", "title", "description", "city", "eventUrl"])
+    assert prepare_events(df) == []
+
+
+@pytest.mark.unit
+def test_format_response_empty_edges():
+    """format_response returns empty DataFrame when edges list is empty."""
+    response = json.dumps({"data": {"self": {"memberEvents": {"edges": []}}}})
+    with patch("arrow.now", return_value=arrow.get("2024-09-18").to("America/Chicago")):
+        df = format_response(response)
+    assert df.empty
+
+
+@pytest.mark.unit
+def test_format_response_null_member_events():
+    """format_response returns empty DataFrame when memberEvents is null."""
+    response = json.dumps({"data": {"self": {"memberEvents": None}}})
+    with patch("arrow.now", return_value=arrow.get("2024-09-18").to("America/Chicago")):
+        df = format_response(response)
+    assert df.empty
+
+
+@pytest.mark.unit
+def test_format_response_null_group_events():
+    """format_response returns empty DataFrame when groupByUrlname events is null."""
+    response = json.dumps({"data": {"groupByUrlname": {"events": None, "city": "Oklahoma City"}}})
+    with patch("arrow.now", return_value=arrow.get("2024-09-18").to("America/Chicago")):
+        df = format_response(response)
+    assert df.empty
+
+
+@pytest.mark.unit
+def test_sort_json_year_boundary(tmp_path):
+    """sort_json preserves year from ISO 8601 dates near year boundaries."""
+    test_json = tmp_path / "test.json"
+    data = [
+        {"date": "2025-01-02T18:00:00", "eventUrl": "url1"},
+        {"date": "2024-12-30T10:00:00", "eventUrl": "url2"},
+    ]
+    with open(test_json, "w") as f:
+        json.dump(data, f)
+
+    with (
+        patch("meetup_query.json_fn", str(test_json)),
+        patch("arrow.now", return_value=arrow.get("2024-12-29")),
+    ):
+        sort_json(test_json)
+
+    with open(test_json) as f:
+        sorted_data = json.load(f)
+
+    assert len(sorted_data) == 2
+    assert sorted_data[0]["eventUrl"] == "url2"
+    assert sorted_data[1]["eventUrl"] == "url1"
+    assert "12/30" in sorted_data[0]["date"]
+    assert "1/2" in sorted_data[1]["date"]
+
+
+@pytest.mark.unit
+def test_sort_json_human_readable_year_boundary(tmp_path):
+    """sort_json with human-readable dates near year boundary should not guess wrong year."""
+    test_json = tmp_path / "test.json"
+    data = [
+        {"date": "Thu 1/2 6:00 pm", "eventUrl": "url1"},
+        {"date": "Mon 12/30 10:00 am", "eventUrl": "url2"},
+    ]
+    with open(test_json, "w") as f:
+        json.dump(data, f)
+
+    with (
+        patch("meetup_query.json_fn", str(test_json)),
+        patch("arrow.now", return_value=arrow.get("2024-12-29")),
+    ):
+        sort_json(test_json)
+
+    with open(test_json) as f:
+        sorted_data = json.load(f)
+
+    assert len(sorted_data) == 2
+    assert sorted_data[0]["eventUrl"] == "url2"
+    assert sorted_data[1]["eventUrl"] == "url1"
+
+
+@pytest.mark.unit
+def test_prepare_events_human_readable_year_boundary():
+    """prepare_events with human-readable dates near year boundary should not guess wrong year."""
+    df = pd.DataFrame(
+        {
+            "name": ["Group A", "Group B"],
+            "date": ["Thu 1/2 6:00 pm", "Mon 12/30 10:00 am"],
+            "title": ["Jan Event", "Dec Event"],
+            "description": ["desc", "desc"],
+            "city": ["OKC", "OKC"],
+            "eventUrl": ["url1", "url2"],
+        }
+    )
+    with patch("arrow.now", return_value=arrow.get("2024-12-29")):
+        result = prepare_events(df)
+
+    assert len(result) == 2
+    assert result[0]["eventUrl"] == "url2"
+    assert result[1]["eventUrl"] == "url1"
+
+
+@pytest.mark.unit
+def test_prepare_events_year_boundary():
+    """prepare_events preserves year from ISO 8601 dates near year boundaries."""
+    df = pd.DataFrame(
+        {
+            "name": ["Group A", "Group B"],
+            "date": ["2025-01-02T18:00:00", "2024-12-30T10:00:00"],
+            "title": ["Jan Event", "Dec Event"],
+            "description": ["desc", "desc"],
+            "city": ["OKC", "OKC"],
+            "eventUrl": ["url1", "url2"],
+        }
+    )
+    with patch("arrow.now", return_value=arrow.get("2024-12-29")):
+        result = prepare_events(df)
+
+    assert len(result) == 2
+    assert result[0]["eventUrl"] == "url2"
+    assert result[1]["eventUrl"] == "url1"
+    assert "12/30" in result[0]["date"]
+    assert "1/2" in result[1]["date"]
+
+
+@pytest.mark.unit
 @patch("meetup_query.gen_token")
 @patch("meetup_query.send_request")
 @patch("meetup_query.send_batched_group_request")
@@ -856,6 +1225,50 @@ class TestGetAccessTokenUsesHttpx:
         source = (Path(__file__).resolve().parent.parent / "app" / "sign_jwt.py").read_text()
         assert "httpx.Client()" in source, "get_access_token should use httpx.Client()"
         assert "requests.request" not in source, "get_access_token should not use requests.request"
+
+
+@pytest.mark.unit
+class TestSignJwtGracefulKeyFailure:
+    """sign_jwt must not crash at import time with invalid keys."""
+
+    def test_sign_token_returns_none_when_private_key_unavailable(self):
+        """sign_token returns None when private key failed to load."""
+        import sign_jwt
+
+        original = sign_jwt.private_key
+        try:
+            sign_jwt.private_key = None
+            result = sign_jwt.sign_token()
+            assert result is None
+        finally:
+            sign_jwt.private_key = original
+
+    def test_verify_token_returns_false_when_public_key_unavailable(self):
+        """verify_token returns False when public key failed to load."""
+        import sign_jwt
+
+        original = sign_jwt.public_key
+        try:
+            sign_jwt.public_key = None
+            result = sign_jwt.verify_token("fake.token.here")
+            assert result is False
+        finally:
+            sign_jwt.public_key = original
+
+    def test_main_returns_none_when_keys_unavailable(self):
+        """main() returns None when keys failed to load."""
+        import sign_jwt
+
+        orig_priv = sign_jwt.private_key
+        orig_pub = sign_jwt.public_key
+        try:
+            sign_jwt.private_key = None
+            sign_jwt.public_key = None
+            result = sign_jwt.main()
+            assert result is None
+        finally:
+            sign_jwt.private_key = orig_priv
+            sign_jwt.public_key = orig_pub
 
 
 @pytest.mark.unit
@@ -993,3 +1406,47 @@ class TestSendBatchedGroupRequest:
     def test_empty_list(self):
         results = send_batched_group_request("fake_token", [])
         assert results == []
+
+
+@pytest.mark.unit
+class TestArrowTimezoneAbbreviation:
+    """Verify arrow ZZZ token produces correct CST/CDT for America/Chicago."""
+
+    @pytest.mark.parametrize(
+        "month, day, expected_abbr",
+        [
+            (1, 15, "CST"),
+            (2, 15, "CST"),
+            (6, 15, "CDT"),
+            (7, 15, "CDT"),
+            (12, 15, "CST"),
+        ],
+        ids=["jan-cst", "feb-cst", "jun-cdt", "jul-cdt", "dec-cst"],
+    )
+    def test_standard_and_daylight_periods(self, month, day, expected_abbr):
+        dt = arrow.Arrow(2026, month, day, 14, 0, tzinfo="America/Chicago")
+        formatted = dt.format("dddd HH:mm ZZZ")
+        assert formatted.endswith(expected_abbr)
+
+    def test_spring_forward_transition(self):
+        """March 8, 2026 is spring-forward day — afternoon is CDT."""
+        dt = arrow.Arrow(2026, 3, 8, 14, 0, tzinfo="America/Chicago")
+        assert dt.format("ZZZ") == "CDT"
+
+    def test_fall_back_transition(self):
+        """November 1, 2026 is fall-back day — afternoon is CST."""
+        dt = arrow.Arrow(2026, 11, 1, 14, 0, tzinfo="America/Chicago")
+        assert dt.format("ZZZ") == "CST"
+
+    def test_format_matches_check_schedule_pattern(self):
+        """The format string used in check-schedule produces expected shape."""
+        dt = arrow.Arrow(2026, 1, 15, 14, 0, tzinfo="America/Chicago")
+        result = dt.format("dddd HH:mm ZZZ")
+        assert result == "Thursday 14:00 CST"
+
+    def test_utc_converted_to_local_preserves_abbr(self):
+        """Converting a UTC time to America/Chicago yields the correct abbreviation."""
+        utc_dt = arrow.Arrow(2026, 6, 15, 19, 0, tzinfo="UTC")
+        local_dt = utc_dt.to("America/Chicago")
+        assert local_dt.format("ZZZ") == "CDT"
+        assert local_dt.format("dddd HH:mm ZZZ") == "Monday 14:00 CDT"

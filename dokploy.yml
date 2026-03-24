@@ -23,7 +23,7 @@ environments:
       web:
         domain:
           host: meetupbot.exographicskip.com
-          port: 3000
+          port: 3100
           https: true
           certificateType: letsencrypt
 
@@ -36,10 +36,10 @@ apps:
         type: volume
     schedules:
       - name: weekday-run
-        cronExpression: "0 9 * * 1-5"
+        cronExpression: "0 9 * * 1,3,5"
         command: >-
           python -c "import httpx;
-          httpx.post('http://localhost:3000/api/slack',
+          httpx.post('http://localhost:3100/api/slack',
           params={'channel_name': 'okc-metro'})"
         shellType: bash
         timezone: America/Chicago

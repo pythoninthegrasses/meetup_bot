@@ -106,11 +106,7 @@ def snooze_schedule(duration):
             snooze_until = current_time.shift(minutes=5)
             new_schedule_time = snooze_until.to("UTC").format("HH:mm")
         elif duration == "next_scheduled":
-            if current_time > schedule_time:
-                # If current time is past today's scheduled time, set for tomorrow
-                snooze_until = schedule_time.shift(days=1)
-            else:
-                snooze_until = schedule_time
+            snooze_until = schedule_time.shift(days=1) if current_time > schedule_time else schedule_time
             new_schedule_time = schedule.schedule_time
         elif duration == "rest_of_week":
             # Find the next Sunday

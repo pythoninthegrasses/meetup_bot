@@ -1,6 +1,7 @@
-deno 2.5.1
-prek   0.3.2
-python 3.11.13
-ruby   3.4.5
-ruff   0.12.11
-uv     0.8.8
+deno     2.5.1
+prek     0.3.2
+python   3.11.13
+ruby     3.4.5
+ruff     0.12.11
+uv       0.8.8
+yamllint 1.38.0
