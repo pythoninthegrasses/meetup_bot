@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7.0
+# syntax=docker/dockerfile:1.17.1
 # check=skip=all
 
 # full semver just for python base image
@@ -19,11 +19,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
   gcc \
   python3-dev
 
-# pip env vars
-ENV PIP_NO_CACHE_DIR=off
-ENV PIP_DISABLE_PIP_VERSION_CHECK=on
-ENV PIP_DEFAULT_TIMEOUT=100
-
 # venv
 ARG UV_PROJECT_ENVIRONMENT="/opt/venv"
 ENV VENV="${UV_PROJECT_ENVIRONMENT}"
@@ -38,7 +33,14 @@ COPY ./app .
 COPY ./README.md .
 COPY pyproject.toml .
 
-RUN --mount=type=cache,target=/root/.cache/uv \
+# optimize startup time, don't use hardlinks, set cache for buildkit mount,
+# set uv timeout
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+ENV UV_CACHE_DIR=/opt/uv-cache/
+ENV UV_HTTP_TIMEOUT=90
+
+RUN --mount=type=cache,target=/opt/uv-cache,sharing=locked \
   uv venv $UV_PROJECT_ENVIRONMENT \
   && uv pip install -r pyproject.toml
 
